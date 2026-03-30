@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
 // Rate limiting simples em memória (para produção, use Redis)
@@ -55,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: 'Token não fornecido' });
   }
 
-  if (!supabaseUrl || !supabaseServiceKey) {
+  if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
     return res.status(500).json({ error: 'Supabase not configured' });
   }
 
@@ -66,9 +67,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Usar o token do usuário para autenticar
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: { user }, error } = await supabaseClient.auth.getUser(token);
+    
     if (error || !user) {
-      return res.status(403).json({ error: 'Token inválido' });
+      console.error('Auth error:', error);
+      return res.status(403).json({ error: 'Token inválido', details: error?.message });
     }
 
     const { image } = req.body;
