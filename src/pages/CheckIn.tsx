@@ -101,48 +101,47 @@ export default function CheckIn() {
     setError(null);
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Você precisa estar logado para usar a análise por IA.');
-      }
-
-      const response = await fetch('/api/analyze-vehicle', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ image: base64Image })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao analisar imagem');
-      }
-
-      const result = await response.json();
+      // Usar Tesseract.js para OCR da placa
+      const { createWorker } = await import('tesseract.js');
       
-      const typeMapping: Record<string, 'HATCH' | 'SEDAN' | 'SUV' | 'CAMINHONETE'> = {
-        'Carro': 'HATCH',
-        'SUV': 'SUV',
-        'Caminhonete': 'CAMINHONETE',
-        'Moto': 'HATCH',
-      };
-
-      const mappedType = typeMapping[result.tipo] || 'HATCH';
-
+      const worker = await createWorker('por');
+      
+      // Processar a imagem para extrair texto (placa)
+      const { data: { text } } = await worker.recognize(base64Image);
+      
+      await worker.terminate();
+      
+      // Extrair placa do texto usando regex
+      // Formatos: ABC-1234 ou ABC1D23 (Mercosul)
+      const plateRegex = /[A-Z]{3}[-]?[0-9]{1}[A-Z0-9]{1}[0-9]{2}/g;
+      const plates = text.match(plateRegex);
+      const detectedPlate = plates && plates.length > 0 ? plates[0] : null;
+      
+      // Preencher apenas a placa, o resto o usuário preenche manualmente
       setAiResults({
-        tipo: mappedType,
-        marca: result.marca,
-        modelo: result.modelo,
-        cor: result.cor,
-        nivel_sujeira: result.nivel_sujeira,
-        placa: result.placa
+        tipo: 'HATCH',
+        marca: '',
+        modelo: '',
+        cor: '',
+        nivel_sujeira: 'Médio',
+        placa: detectedPlate
       });
 
-      setVehicleInfo({
-        brand: result.marca,
-        model: result.modelo,
+      if (detectedPlate) {
+        setVehicleInfo(prev => ({
+          ...prev,
+          plate: detectedPlate
+        }));
+      } else {
+        setError('Não foi possível detectar a placa. Por favor, digite manualmente.');
+      }
+      
+    } catch (err: any) {
+      setError(err.message || 'Erro ao analisar imagem');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
         color: result.cor,
         type: mappedType
       });
