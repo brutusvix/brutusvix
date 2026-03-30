@@ -157,6 +157,25 @@ export default function CheckIn() {
 
       setAiResults(result);
       
+      // Mostrar mensagem se detecção foi parcial
+      const detectedFields = [
+        result.placa && 'placa',
+        result.marca && 'marca',
+        result.modelo && 'modelo',
+        result.cor && 'cor'
+      ].filter(Boolean);
+      
+      if (detectedFields.length < 4) {
+        const missingFields = [];
+        if (!result.marca) missingFields.push('marca');
+        if (!result.modelo) missingFields.push('modelo');
+        if (!result.cor) missingFields.push('cor');
+        
+        if (missingFields.length > 0) {
+          setError(`✅ Placa detectada! Por favor, preencha manualmente: ${missingFields.join(', ')}`);
+        }
+      }
+      
     } catch (err: any) {
       console.error("AI Analysis Error:", err);
       // Não mostrar erro - apenas permitir entrada manual

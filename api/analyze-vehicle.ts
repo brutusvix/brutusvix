@@ -5,6 +5,7 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const plateRecognizerKey = process.env.PLATE_RECOGNIZER_API_KEY;
+const geminiApiKey = process.env.GEMINI_API_KEY;
 
 // Rate limiting simples em memória (para produção, use Redis)
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
@@ -191,6 +192,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     
     console.log('Final result:', result);
+    
+    // Se não detectou marca/modelo/cor, tentar com Gemini Vision
+    if (geminiApiKey && (!result.marca || !result.modelo || !result.cor)) {
+      try {
+        console.log('Trying Gemini Vision for make/model/color...');
+        
+        const geminiPrompt = `Analise esta imagem de veículo e identifique:
+- Marca (ex: Volkswagen, Fiat, Chevrolet)
+- Modelo (ex: Gol, Uno, Onix)
+- Cor (ex: Branco, Preto, Prata, Vermelho)
+
+Retorne APENAS um JSON válido com esta estrutura:
+{
+  "marca": "nome da marca",
+  "modelo": "nome do modelo",
+  "cor": "cor do veículo"
+}`;
+
+        const geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: geminiPrompt },
+                  {
+                    inline_data: {
+                      mime_type: 'image/jpeg',
+                      data: base64Data
+                    }
+                  }
+                ]
+              }],
+              generationConfig: {
+                temperature: 0.4,
+                maxOutputTokens: 200
+              }
+            })
+          }
+        );
+
+        if (geminiResponse.ok) {
+          const geminiData = await geminiResponse.json();
+          const geminiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+          
+          if (geminiText) {
+            // Extrair JSON da resposta
+            let geminiResult;
+            try {
+              geminiResult = JSON.parse(geminiText);
+            } catch {
+              const jsonMatch = geminiText.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                geminiResult = JSON.parse(jsonMatch[0]);
+              }
+            }
+            
+            if (geminiResult) {
+              result.marca = result.marca || geminiResult.marca;
+              result.modelo = result.modelo || geminiResult.modelo;
+              result.cor = result.cor || geminiResult.cor;
+              console.log('Gemini enhanced result:', result);
+            }
+          }
+        }
+      } catch (geminiError) {
+        console.error('Gemini Vision error (non-critical):', geminiError);
+        // Não falhar se Gemini não funcionar
+      }
+    }
+    
     return res.status(200).json(result);
   } catch (err: any) {
     console.error('Vehicle analysis error:', err);

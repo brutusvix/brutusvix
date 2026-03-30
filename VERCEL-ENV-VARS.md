@@ -9,7 +9,7 @@ Vá em: **Seu Projeto → Settings → Environment Variables**
 
 ## ✅ Variáveis OBRIGATÓRIAS
 
-### 1. PlateRecognizer API (NOVA - Reconhecimento de Placas)
+### 1. PlateRecognizer API (Reconhecimento de Placas)
 ```
 PLATE_RECOGNIZER_API_KEY=sua_chave_platerecognizer_aqui
 ```
@@ -17,10 +17,23 @@ PLATE_RECOGNIZER_API_KEY=sua_chave_platerecognizer_aqui
 - **Onde obter**: https://app.platerecognizer.com/
 - **Plano gratuito**: 2.500 reconhecimentos/mês
 - **Precisão**: 95-99%
+- **Detecta**: Placa + Tipo de veículo
 
 ---
 
-### 2. Supabase (Banco de Dados e Autenticação)
+### 2. Gemini AI (OPCIONAL - Marca, Modelo, Cor)
+```
+GEMINI_API_KEY=sua_chave_gemini_aqui
+```
+- **O que é**: API do Google para detectar marca, modelo e cor do veículo
+- **Onde obter**: https://aistudio.google.com/apikey
+- **Plano gratuito**: 1.500 requisições/dia
+- **OPCIONAL**: Se não configurar, usuário preenche manualmente
+- **Detecta**: Marca, Modelo, Cor
+
+---
+
+### 3. Supabase (Banco de Dados e Autenticação)
 
 #### URL do Supabase
 ```
@@ -40,7 +53,7 @@ SUPABASE_SERVICE_KEY=sua_service_key_aqui
 
 ---
 
-### 3. JWT Secret (Segurança)
+### 4. JWT Secret (Segurança)
 ```
 JWT_SECRET=seu_jwt_secret_aqui
 ```
@@ -50,7 +63,7 @@ JWT_SECRET=seu_jwt_secret_aqui
 
 ---
 
-### 4. URL da Aplicação
+### 5. URL da Aplicação
 ```
 APP_URL=https://seu-projeto.vercel.app
 ```
@@ -60,12 +73,11 @@ APP_URL=https://seu-projeto.vercel.app
 
 ## ❌ Variáveis REMOVIDAS (Não usar mais)
 
-### Gemini AI (REMOVIDO)
-```
-❌ GEMINI_API_KEY - NÃO ADICIONAR MAIS
-```
-- **Por quê**: Gemini estava com problemas de disponibilidade de modelos
-- **Substituído por**: PlateRecognizer (mais confiável e preciso)
+**Nenhuma** - Todas as variáveis são úteis agora!
+
+- ✅ PLATE_RECOGNIZER_API_KEY - Detecta placa
+- ✅ GEMINI_API_KEY - Detecta marca/modelo/cor (OPCIONAL)
+- ✅ Outras variáveis do Supabase
 
 ---
 
@@ -81,23 +93,31 @@ APP_URL=https://seu-projeto.vercel.app
    - Selecione **Production**, **Preview** e **Development**
    - Clique em **Save**
 
-**IMPORTANTE**: Use os valores reais do seu arquivo `.env` local, não os placeholders acima!
+**IMPORTANTE**: 
+- Use os valores reais do seu arquivo `.env` local, não os placeholders acima!
+- GEMINI_API_KEY é OPCIONAL - se não adicionar, usuário preenche manualmente
 
 ---
 
 ## 📝 Resumo das Mudanças
 
-### Antes (com Gemini):
-- ❌ GEMINI_API_KEY
-- ✅ Outras variáveis
+### Solução Híbrida (Melhor dos Dois Mundos)
 
-### Agora (com PlateRecognizer):
-- ✅ PLATE_RECOGNIZER_API_KEY (NOVA)
-- ✅ Todas as outras variáveis do Supabase
-- ✅ JWT_SECRET
-- ✅ APP_URL
+**PlateRecognizer** (Obrigatório):
+- ✅ Detecta placa com 95-99% precisão
+- ✅ Detecta tipo de veículo
+- ✅ 2.500 chamadas/mês grátis
 
-**NOTA**: Os valores acima são apenas exemplos. Use os valores reais do seu arquivo `.env` local.
+**Gemini Vision** (Opcional):
+- ✅ Detecta marca, modelo e cor
+- ✅ 1.500 chamadas/dia grátis
+- ✅ Se não configurar, entrada manual
+
+**Resultado**:
+- 🎯 Placa sempre detectada automaticamente
+- 🎯 Marca/modelo/cor detectados se Gemini configurado
+- 🎯 Entrada manual como fallback
+- 🎯 100% gratuito!
 
 ---
 
