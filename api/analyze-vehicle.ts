@@ -102,7 +102,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     // Criar boundary para multipart/form-data
     const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
-    const base64Data = image.split(',')[1];
     
     // Construir corpo multipart/form-data
     let body = '';
