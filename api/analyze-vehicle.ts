@@ -87,18 +87,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     const genAI = new GoogleGenerativeAI(geminiApiKey);
     
-    // Tentar com gemini-1.5-pro primeiro
-    let model;
-    try {
-      model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-pro"
-      });
-    } catch (err) {
-      // Fallback para gemini-pro-vision
-      model = genAI.getGenerativeModel({ 
-        model: "gemini-pro-vision"
-      });
-    }
+    // Usar gemini-pro-vision que é o modelo estável para imagens
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-pro-vision"
+    });
     
     const base64Data = image.split(',')[1];
     
