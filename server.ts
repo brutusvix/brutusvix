@@ -101,7 +101,7 @@ async function startServer() {
   // Rate limit específico para Gemini AI (custo financeiro)
   const aiLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hora
-    max: 10, // Máximo 10 análises por hora
+    max: 20, // Máximo 20 análises por hora
     message: { error: 'Limite de análises de IA atingido. Tente em 1 hora.' },
     standardHeaders: true,
     legacyHeaders: false,
