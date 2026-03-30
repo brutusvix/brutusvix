@@ -39,10 +39,13 @@ async function startServer() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://unpkg.com"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
-        connectSrc: ["'self'", "https://yfhiqhupuhrhsrzyqjli.supabase.co", "wss://yfhiqhupuhrhsrzyqjli.supabase.co"],
+        connectSrc: ["'self'", "https://yfhiqhupuhrhsrzyqjli.supabase.co", "wss://yfhiqhupuhrhsrzyqjli.supabase.co", "https://unpkg.com", "https://cdn.jsdelivr.net", "ws://localhost:24678", "data:"],
+        workerSrc: ["'self'", "blob:"],
+        childSrc: ["'self'", "blob:"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
       },
     },
     hsts: {

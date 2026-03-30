@@ -118,9 +118,9 @@ export const createAppointmentSchema = z.object({
   vehicle_type: z.enum(['HATCH', 'SEDAN', 'SUV', 'CAMINHONETE', 'MOTO_PEQUENA', 'MOTO_GRANDE']),
   
   plate: z.string()
+    .trim()
     .regex(plateRegex, 'Placa inválida')
-    .transform(val => val.toUpperCase())
-    .trim(),
+    .transform(val => val.toUpperCase()),
   
   vehicle_model: z.string()
     .min(2, 'Modelo deve ter no mínimo 2 caracteres')

@@ -105,13 +105,13 @@ export default function CheckIn() {
       const { createWorker } = await import('tesseract.js');
       
       const worker = await createWorker('eng', 1, {
-        logger: m => console.log(m)
+        logger: m => console.log('Tesseract:', m)
       });
       
       // Configurar para melhor reconhecimento de placas
       await worker.setParameters({
         tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-        tessedit_pageseg_mode: '6', // Assume a single uniform block of text
+        tessedit_pageseg_mode: '11', // Sparse text
       });
       
       // Processar a imagem para extrair texto (placa)
@@ -119,25 +119,43 @@ export default function CheckIn() {
       
       await worker.terminate();
       
-      console.log('OCR Text:', text);
+      console.log('OCR Raw Text:', text);
       
-      // Extrair placa do texto usando regex mais flexível
-      // Formatos: ABC-1234, ABC1234, ABC1D23
-      const cleanText = text.toUpperCase().replace(/\s/g, '');
-      const plateRegex = /[A-Z]{3}[-]?[0-9A-Z]{4}/g;
-      const plates = cleanText.match(plateRegex);
+      // Limpar e processar o texto
+      const cleanText = text
+        .toUpperCase()
+        .replace(/\s+/g, '') // Remove espaços
+        .replace(/[^A-Z0-9]/g, ''); // Remove caracteres especiais
       
-      console.log('Detected plates:', plates);
+      console.log('OCR Clean Text:', cleanText);
       
-      const detectedPlate = plates && plates.length > 0 ? plates[0] : null;
+      // Tentar encontrar padrões de placa
+      // Mercosul: ABC1D23 (3 letras + 1 número + 1 letra + 2 números)
+      // Antiga: ABC1234 (3 letras + 4 números)
+      const mercosulRegex = /[A-Z]{3}[0-9][A-Z][0-9]{2}/;
+      const antigaRegex = /[A-Z]{3}[0-9]{4}/;
+      
+      let detectedPlate = null;
+      
+      // Tentar Mercosul primeiro
+      const mercosulMatch = cleanText.match(mercosulRegex);
+      if (mercosulMatch) {
+        detectedPlate = mercosulMatch[0];
+      } else {
+        // Tentar formato antigo
+        const antigaMatch = cleanText.match(antigaRegex);
+        if (antigaMatch) {
+          detectedPlate = antigaMatch[0];
+        }
+      }
+      
+      console.log('Detected Plate:', detectedPlate);
       
       if (detectedPlate) {
-        // Remove any non-alphanumeric characters and convert to uppercase
-        const cleanPlate = detectedPlate.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        setPlate(cleanPlate);
+        setPlate(detectedPlate);
         setVehicleInfo(prev => ({
           ...prev,
-          plate: cleanPlate
+          plate: detectedPlate
         }));
       } else {
         setError('Não foi possível detectar a placa. Por favor, digite manualmente.');
