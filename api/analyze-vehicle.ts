@@ -5,7 +5,7 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const plateRecognizerKey = process.env.PLATE_RECOGNIZER_API_KEY;
-const geminiApiKey = process.env.GEMINI_API_KEY;
+const groqApiKey = process.env.GROQ_API_KEY;
 
 // Rate limiting simples em memória (para produção, use Redis)
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
@@ -169,21 +169,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     if (prData.results && prData.results.length > 0) {
       const plateData = prData.results[0];
-      result.placa = plateData.plate;
+      result.placa = plateData.plate?.toUpperCase();
       
-      // PlateRecognizer também detecta marca/modelo/cor em alguns casos
+      // PlateRecognizer também detecta tipo de veículo
       if (plateData.vehicle) {
         result.tipo = plateData.vehicle.type || result.tipo;
-        result.marca = plateData.vehicle.make || result.marca;
-        result.modelo = plateData.vehicle.model || result.modelo;
-        
-        // Cor pode vir como array
-        if (plateData.vehicle.color && Array.isArray(plateData.vehicle.color) && plateData.vehicle.color.length > 0) {
-          result.cor = plateData.vehicle.color[0].name || result.cor;
-        }
       }
       
-      console.log('Successfully extracted vehicle data:', result);
+      console.log('Plate detected:', result.placa);
     } else {
       console.log('No plates detected in image');
       return res.status(400).json({ 
@@ -191,96 +184,150 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
     
+    // Buscar no cache do banco de dados
+    if (result.placa) {
+      console.log('Searching vehicle cache for plate:', result.placa);
+      
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: cachedVehicle, error: cacheError } = await supabaseAdmin
+        .from('vehicle_cache')
+        .select('marca, modelo, cor, tipo')
+        .eq('placa', result.placa)
+        .single();
+      
+      if (!cacheError && cachedVehicle) {
+        console.log('Found in cache:', cachedVehicle);
+        result.marca = cachedVehicle.marca;
+        result.modelo = cachedVehicle.modelo;
+        result.cor = cachedVehicle.cor;
+        result.tipo = cachedVehicle.tipo || result.tipo;
+        
+        console.log('Final result (from cache):', result);
+        return res.status(200).json(result);
+      } else {
+        console.log('Not found in cache, will try AI detection');
+      }
+    }
+    
     console.log('Final result:', result);
     
-    // Se não detectou marca/modelo/cor, tentar com Gemini Vision
-    if (geminiApiKey && (!result.marca || !result.modelo || !result.cor)) {
+    // Se não encontrou no cache, tentar com Groq Vision
+    if (groqApiKey && (!result.marca || !result.modelo || !result.cor)) {
       try {
-        console.log('Trying Gemini Vision for make/model/color...');
-        console.log('Has Gemini API Key:', !!geminiApiKey);
+        console.log('Trying Groq Vision for make/model/color...');
+        console.log('Has Groq API Key:', !!groqApiKey);
         
-        const geminiPrompt = `Analise esta imagem de veículo e retorne APENAS um objeto JSON válido com marca, modelo e cor. Formato: {"marca":"Toyota","modelo":"Corolla","cor":"Prata"}`;
+        const groqPrompt = `Analise esta imagem de veículo e identifique:
+- Marca (ex: Volkswagen, Fiat, Chevrolet, Toyota)
+- Modelo (ex: Gol, Uno, Onix, Corolla)
+- Cor (ex: Branco, Preto, Prata, Vermelho)
 
-        const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+Responda APENAS com um objeto JSON válido neste formato exato:
+{"marca":"Volkswagen","modelo":"Gol","cor":"Branco"}`;
+
+        const groqResponse = await fetch(
+          'https://api.groq.com/openai/v1/chat/completions',
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Authorization': `Bearer ${groqApiKey}`,
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: geminiPrompt },
-                  {
-                    inline_data: {
-                      mime_type: 'image/jpeg',
-                      data: base64Data
+              model: 'llama-3.2-90b-vision-preview',
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: groqPrompt
+                    },
+                    {
+                      type: 'image_url',
+                      image_url: {
+                        url: `data:image/jpeg;base64,${base64Data}`
+                      }
                     }
-                  }
-                ]
-              }],
-              generationConfig: {
-                temperature: 0.1,
-                maxOutputTokens: 100,
-                topP: 0.95,
-                topK: 40
-              }
+                  ]
+                }
+              ],
+              temperature: 0.1,
+              max_tokens: 100
             })
           }
         );
 
-        console.log('Gemini response status:', geminiResponse.status);
+        console.log('Groq response status:', groqResponse.status);
 
-        if (geminiResponse.ok) {
-          const geminiData = await geminiResponse.json();
-          console.log('Gemini raw response:', JSON.stringify(geminiData, null, 2));
+        if (groqResponse.ok) {
+          const groqData = await groqResponse.json();
+          console.log('Groq raw response:', JSON.stringify(groqData, null, 2));
           
-          const geminiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+          const groqText = groqData.choices?.[0]?.message?.content;
           
-          if (geminiText) {
-            console.log('Gemini text response:', geminiText);
+          if (groqText) {
+            console.log('Groq text response:', groqText);
             
             // Limpar resposta (remover markdown se houver)
-            let cleanText = geminiText.trim();
+            let cleanText = groqText.trim();
             cleanText = cleanText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
             
             // Extrair JSON da resposta
-            let geminiResult;
+            let groqResult;
             try {
-              geminiResult = JSON.parse(cleanText);
+              groqResult = JSON.parse(cleanText);
             } catch {
               const jsonMatch = cleanText.match(/\{[^}]*\}/);
               if (jsonMatch) {
                 try {
-                  geminiResult = JSON.parse(jsonMatch[0]);
+                  groqResult = JSON.parse(jsonMatch[0]);
                 } catch (e) {
                   console.log('Failed to parse extracted JSON:', jsonMatch[0]);
                 }
               }
             }
             
-            if (geminiResult) {
-              result.marca = result.marca || geminiResult.marca;
-              result.modelo = result.modelo || geminiResult.modelo;
-              result.cor = result.cor || geminiResult.cor;
-              console.log('Gemini enhanced result:', result);
+            if (groqResult) {
+              result.marca = result.marca || groqResult.marca;
+              result.modelo = result.modelo || groqResult.modelo;
+              result.cor = result.cor || groqResult.cor;
+              console.log('Groq enhanced result:', result);
+              
+              // Salvar no cache para próxima vez
+              if (result.placa && (result.marca || result.modelo || result.cor)) {
+                console.log('Saving to cache:', result);
+                const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+                await supabaseAdmin
+                  .from('vehicle_cache')
+                  .upsert({
+                    placa: result.placa,
+                    marca: result.marca,
+                    modelo: result.modelo,
+                    cor: result.cor,
+                    tipo: result.tipo
+                  }, {
+                    onConflict: 'placa'
+                  });
+              }
             } else {
-              console.log('Could not parse Gemini JSON response');
+              console.log('Could not parse Groq JSON response');
             }
           } else {
-            console.log('No text in Gemini response');
+            console.log('No text in Groq response');
           }
         } else {
-          const errorText = await geminiResponse.text();
-          console.error('Gemini API error:', geminiResponse.status, errorText);
+          const errorText = await groqResponse.text();
+          console.error('Groq API error:', groqResponse.status, errorText);
         }
-      } catch (geminiError: any) {
-        console.error('Gemini Vision error (non-critical):', geminiError.message);
-        console.error('Gemini error stack:', geminiError.stack);
-        // Não falhar se Gemini não funcionar
+      } catch (groqError: any) {
+        console.error('Groq Vision error (non-critical):', groqError.message);
+        console.error('Groq error stack:', groqError.stack);
+        // Não falhar se Groq não funcionar
       }
     } else {
-      console.log('Skipping Gemini:', {
-        hasKey: !!geminiApiKey,
+      console.log('Skipping Groq:', {
+        hasKey: !!groqApiKey,
         hasMarca: !!result.marca,
         hasModelo: !!result.modelo,
         hasCor: !!result.cor
