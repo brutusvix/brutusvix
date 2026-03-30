@@ -101,69 +101,58 @@ export default function CheckIn() {
     setError(null);
     
     try {
-      // Usar Tesseract.js para OCR da placa
-      const { createWorker } = await import('tesseract.js');
-      
-      const worker = await createWorker('eng', 1, {
-        logger: m => console.log('Tesseract:', m)
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Você precisa estar logado para usar a análise por IA.');
+      }
+
+      const response = await fetch('/api/analyze-vehicle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ image: base64Image })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao analisar imagem');
+      }
+
+      const result = await response.json();
       
-      // Configurar para melhor reconhecimento de placas
-      await worker.setParameters({
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-        tessedit_pageseg_mode: '11', // Sparse text
-      });
+      console.log('Gemini AI Result:', result);
       
-      // Processar a imagem para extrair texto (placa)
-      const { data: { text } } = await worker.recognize(base64Image);
-      
-      await worker.terminate();
-      
-      console.log('OCR Raw Text:', text);
-      
-      // Limpar e processar o texto
-      const cleanText = text
-        .toUpperCase()
-        .replace(/\s+/g, '') // Remove espaços
-        .replace(/[^A-Z0-9]/g, ''); // Remove caracteres especiais
-      
-      console.log('OCR Clean Text:', cleanText);
-      
-      // Tentar encontrar padrões de placa
-      // Mercosul: ABC1D23 (3 letras + 1 número + 1 letra + 2 números)
-      // Antiga: ABC1234 (3 letras + 4 números)
-      const mercosulRegex = /[A-Z]{3}[0-9][A-Z][0-9]{2}/;
-      const antigaRegex = /[A-Z]{3}[0-9]{4}/;
-      
-      let detectedPlate = null;
-      
-      // Tentar Mercosul primeiro
-      const mercosulMatch = cleanText.match(mercosulRegex);
-      if (mercosulMatch) {
-        detectedPlate = mercosulMatch[0];
-      } else {
-        // Tentar formato antigo
-        const antigaMatch = cleanText.match(antigaRegex);
-        if (antigaMatch) {
-          detectedPlate = antigaMatch[0];
-        }
+      // Mapear tipo de veículo
+      const typeMapping: Record<string, 'HATCH' | 'SEDAN' | 'SUV' | 'CAMINHONETE'> = {
+        'Carro': 'HATCH',
+        'Hatch': 'HATCH',
+        'Sedan': 'SEDAN',
+        'SUV': 'SUV',
+        'Caminhonete': 'CAMINHONETE',
+        'Moto': 'HATCH',
+      };
+
+      const mappedType = typeMapping[result.tipo] || 'HATCH';
+
+      // Preencher todos os campos
+      if (result.placa) {
+        const cleanPlate = result.placa.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        setPlate(cleanPlate);
       }
       
-      console.log('Detected Plate:', detectedPlate);
-      
-      if (detectedPlate) {
-        setPlate(detectedPlate);
-        setVehicleInfo(prev => ({
-          ...prev,
-          plate: detectedPlate
-        }));
-      } else {
-        setError('Não foi possível detectar a placa. Por favor, digite manualmente.');
-      }
+      setVehicleInfo({
+        brand: result.marca || '',
+        model: result.modelo || '',
+        color: result.cor || '',
+        type: mappedType,
+        plate: result.placa ? result.placa.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : ''
+      });
       
     } catch (err: any) {
-      console.error("OCR Error:", err);
-      setError('Erro ao processar imagem. Por favor, digite a placa manualmente.');
+      console.error("Gemini AI Error:", err);
+      setError(err.message || 'Erro ao processar imagem. Por favor, preencha manualmente.');
     } finally {
       setIsAnalyzing(false);
     }
