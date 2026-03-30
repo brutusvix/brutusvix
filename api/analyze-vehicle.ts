@@ -85,8 +85,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('Starting Gemini analysis for user:', user.id);
     
-    // Usar API REST diretamente para ter mais controle sobre o modelo
-    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+    // Usar API REST diretamente com Gemini 2.0 Flash
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`;
     
     const base64Data = image.split(',')[1];
     
