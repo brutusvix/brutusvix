@@ -77,9 +77,9 @@ export const createVehicleSchema = z.object({
     .trim(),
   
   plate: z.string()
+    .trim()
     .regex(plateRegex, 'Placa inválida. Use formato ABC-1234 ou ABC1D23')
-    .transform(val => val.toUpperCase())
-    .trim(),
+    .transform(val => val.toUpperCase()),
 });
 
 // ── SERVIÇOS ──────────────────────────────────────────────────────────────────
