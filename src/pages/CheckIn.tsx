@@ -117,55 +117,21 @@ export default function CheckIn() {
       const plates = text.match(plateRegex);
       const detectedPlate = plates && plates.length > 0 ? plates[0] : null;
       
-      // Preencher apenas a placa, o resto o usuário preenche manualmente
-      setAiResults({
-        tipo: 'HATCH',
-        marca: '',
-        modelo: '',
-        cor: '',
-        nivel_sujeira: 'Médio',
-        placa: detectedPlate
-      });
-
       if (detectedPlate) {
+        // Remove any non-alphanumeric characters and convert to uppercase
+        const cleanPlate = detectedPlate.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        setPlate(cleanPlate);
         setVehicleInfo(prev => ({
           ...prev,
-          plate: detectedPlate
+          plate: cleanPlate
         }));
       } else {
         setError('Não foi possível detectar a placa. Por favor, digite manualmente.');
       }
       
     } catch (err: any) {
+      console.error("OCR Error:", err);
       setError(err.message || 'Erro ao analisar imagem');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-        color: result.cor,
-        type: mappedType
-      });
-
-      if (result.placa) {
-        // Remove any non-alphanumeric characters and convert to uppercase
-        const cleanPlate = result.placa.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        setPlate(cleanPlate);
-      }
-      
-      // Suggest service
-      let suggested = filteredServices.find(s => s.name.toLowerCase().includes("simples"));
-      if (result.tipo === "SUV" || result.tipo === "Caminhonete") {
-        suggested = filteredServices.find(s => s.name.toLowerCase().includes("completa")) || suggested;
-      }
-      if (result.nivel_sujeira === "Pesado") {
-        const premium = filteredServices.find(s => s.name.toLowerCase().includes("premium"));
-        if (premium) suggested = premium;
-      }
-      
-      if (suggested) setSelectedService(suggested);
-    } catch (err: any) {
-      console.error("AI Analysis Error:", err);
-      setError(`Erro: ${err.message || "Não foi possível analisar a imagem automaticamente."}`);
     } finally {
       setIsAnalyzing(false);
     }
