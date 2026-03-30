@@ -104,17 +104,31 @@ export default function CheckIn() {
       // Usar Tesseract.js para OCR da placa
       const { createWorker } = await import('tesseract.js');
       
-      const worker = await createWorker('por');
+      const worker = await createWorker('eng', 1, {
+        logger: m => console.log(m)
+      });
+      
+      // Configurar para melhor reconhecimento de placas
+      await worker.setParameters({
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+        tessedit_pageseg_mode: '6', // Assume a single uniform block of text
+      });
       
       // Processar a imagem para extrair texto (placa)
       const { data: { text } } = await worker.recognize(base64Image);
       
       await worker.terminate();
       
-      // Extrair placa do texto usando regex
-      // Formatos: ABC-1234 ou ABC1D23 (Mercosul)
-      const plateRegex = /[A-Z]{3}[-]?[0-9]{1}[A-Z0-9]{1}[0-9]{2}/g;
-      const plates = text.match(plateRegex);
+      console.log('OCR Text:', text);
+      
+      // Extrair placa do texto usando regex mais flexível
+      // Formatos: ABC-1234, ABC1234, ABC1D23
+      const cleanText = text.toUpperCase().replace(/\s/g, '');
+      const plateRegex = /[A-Z]{3}[-]?[0-9A-Z]{4}/g;
+      const plates = cleanText.match(plateRegex);
+      
+      console.log('Detected plates:', plates);
+      
       const detectedPlate = plates && plates.length > 0 ? plates[0] : null;
       
       if (detectedPlate) {
@@ -131,7 +145,7 @@ export default function CheckIn() {
       
     } catch (err: any) {
       console.error("OCR Error:", err);
-      setError(err.message || 'Erro ao analisar imagem');
+      setError('Erro ao processar imagem. Por favor, digite a placa manualmente.');
     } finally {
       setIsAnalyzing(false);
     }
