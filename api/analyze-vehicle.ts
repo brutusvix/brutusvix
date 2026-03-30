@@ -56,23 +56,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
-    return res.status(500).json({ error: 'Supabase not configured' });
+    console.error('Supabase config missing:', { 
+      hasUrl: !!supabaseUrl, 
+      hasServiceKey: !!supabaseServiceKey, 
+      hasAnonKey: !!supabaseAnonKey 
+    });
+    return res.status(500).json({ 
+      error: 'Supabase not configured',
+      details: 'Missing environment variables. Check Vercel settings.'
+    });
   }
 
   if (!plateRecognizerKey) {
     console.error('PLATE_RECOGNIZER_API_KEY not configured');
-    return res.status(500).json({ error: 'PlateRecognizer API não configurada' });
+    return res.status(500).json({ 
+      error: 'PlateRecognizer API não configurada',
+      details: 'Missing PLATE_RECOGNIZER_API_KEY in Vercel environment variables'
+    });
   }
 
   try {
     // Usar o token do usuário para autenticar
+    console.log('Authenticating user with Supabase...');
+    console.log('Supabase URL:', supabaseUrl);
+    console.log('Has Anon Key:', !!supabaseAnonKey);
+    
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
     const { data: { user }, error } = await supabaseClient.auth.getUser(token);
     
-    if (error || !user) {
-      console.error('Auth error:', error);
-      return res.status(403).json({ error: 'Token inválido', details: error?.message });
+    if (error) {
+      console.error('Supabase auth error:', {
+        message: error.message,
+        status: error.status,
+        name: error.name
+      });
+      return res.status(403).json({ 
+        error: 'Falha na autenticação', 
+        details: error.message,
+        hint: 'Token pode estar expirado. Faça logout e login novamente.'
+      });
     }
+    
+    if (!user) {
+      console.error('No user returned from Supabase');
+      return res.status(403).json({ 
+        error: 'Usuário não encontrado',
+        hint: 'Token inválido. Faça logout e login novamente.'
+      });
+    }
+
+    console.log('User authenticated successfully:', user.id);
 
     const { image } = req.body;
 

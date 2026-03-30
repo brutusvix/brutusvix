@@ -20,6 +20,7 @@ import {
 import { IMaskInput } from 'react-imask';
 import { useData } from '../DataContext';
 import { useAuth } from '../App';
+import { getValidToken } from '../utils/auth';
 
 export default function CheckIn() {
   const { clients, services, extras, addAppointment, addClient, addVehicle, units, users } = useData();
@@ -101,9 +102,11 @@ export default function CheckIn() {
     setError(null);
     
     try {
-      const token = localStorage.getItem('token');
+      // Obter token válido (renova automaticamente se expirado)
+      const token = await getValidToken();
+      
       if (!token) {
-        throw new Error('Você precisa estar logado para usar a análise por IA.');
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
 
       const response = await fetch('/api/analyze-vehicle', {
