@@ -599,17 +599,13 @@ async function startServer() {
           console.log('Trying Gemini Vision for make/model/color...');
           console.log('Has Gemini API Key:', !!geminiApiKey);
           
-          const geminiPrompt = `Analise esta imagem de veículo e identifique:
+          const geminiPrompt = `Analise esta imagem de veículo e identifique APENAS:
 - Marca (ex: Volkswagen, Fiat, Chevrolet)
 - Modelo (ex: Gol, Uno, Onix)
-- Cor (ex: Branco, Preto, Prata, Vermelho)
+- Cor (ex: Branco, Preto, Prata)
 
-Retorne APENAS um JSON válido com esta estrutura:
-{
-  "marca": "nome da marca",
-  "modelo": "nome do modelo",
-  "cor": "cor do veículo"
-}`;
+Responda SOMENTE com JSON puro, sem markdown:
+{"marca":"X","modelo":"Y","cor":"Z"}`;
 
           const geminiResponse = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
@@ -629,8 +625,9 @@ Retorne APENAS um JSON válido com esta estrutura:
                   ]
                 }],
                 generationConfig: {
-                  temperature: 0.4,
-                  maxOutputTokens: 200
+                  temperature: 0.2,
+                  maxOutputTokens: 100,
+                  responseMimeType: "application/json"
                 }
               })
             }
@@ -647,14 +644,22 @@ Retorne APENAS um JSON válido com esta estrutura:
             if (geminiText) {
               console.log('Gemini text response:', geminiText);
               
+              // Limpar resposta (remover markdown se houver)
+              let cleanText = geminiText.trim();
+              cleanText = cleanText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+              
               // Extrair JSON da resposta
               let geminiResult;
               try {
-                geminiResult = JSON.parse(geminiText);
+                geminiResult = JSON.parse(cleanText);
               } catch {
-                const jsonMatch = geminiText.match(/\{[\s\S]*\}/);
+                const jsonMatch = cleanText.match(/\{[^}]*\}/);
                 if (jsonMatch) {
-                  geminiResult = JSON.parse(jsonMatch[0]);
+                  try {
+                    geminiResult = JSON.parse(jsonMatch[0]);
+                  } catch (e) {
+                    console.log('Failed to parse extracted JSON:', jsonMatch[0]);
+                  }
                 }
               }
               
