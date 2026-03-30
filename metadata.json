@@ -1,0 +1,7 @@
+{
+  "name": "Backup: BRUTUS LAVAJATO",
+  "description": "Sistema de gestão multi-tenant para estéticas automotivas e lava-jatos.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

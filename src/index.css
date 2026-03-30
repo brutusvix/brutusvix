@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* Brutus Branding Colors - Updated for Professional SaaS Look */
+  --color-brand-primary: #2563eb; /* Blue 600 */
+  --color-brand-primary-hover: #1d4ed8; /* Blue 700 */
+  --color-brand-primary-light: rgba(37, 99, 235, 0.1); /* Blue 600 light */
+  --color-brand-secondary: #64748b; /* Slate 500 */
+}
+
+body {
+  @apply bg-zinc-950 text-zinc-300 font-sans antialiased overflow-x-hidden;
+}
+
+@layer components {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors;
+  }
+}
