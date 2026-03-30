@@ -86,12 +86,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Starting Gemini analysis for user:', user.id);
     
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash-latest",
-      generationConfig: {
-        responseMimeType: "application/json",
-      }
-    });
+    
+    // Tentar com gemini-1.5-pro primeiro
+    let model;
+    try {
+      model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-pro"
+      });
+    } catch (err) {
+      // Fallback para gemini-pro-vision
+      model = genAI.getGenerativeModel({ 
+        model: "gemini-pro-vision"
+      });
+    }
     
     const base64Data = image.split(',')[1];
     
@@ -131,7 +138,20 @@ Estimate the dirt level (nivel_sujeira: Leve, Médio, Pesado). Return a JSON obj
     // Log para debug
     console.log('Gemini response text:', text);
     
-    const jsonResult = JSON.parse(text);
+    // Tentar extrair JSON da resposta
+    let jsonResult;
+    try {
+      // Tentar parse direto
+      jsonResult = JSON.parse(text);
+    } catch {
+      // Se falhar, tentar extrair JSON de markdown
+      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonResult = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+      } else {
+        throw new Error('Could not parse JSON from response');
+      }
+    }
     
     return res.status(200).json(jsonResult);
   } catch (err: any) {
