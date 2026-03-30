@@ -85,12 +85,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('Starting Gemini analysis for user:', user.id);
     
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    
-    // Usar gemini-pro-vision que é o modelo estável para imagens
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-pro-vision"
-    });
+    // Usar API REST diretamente para ter mais controle sobre o modelo
+    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
     
     const base64Data = image.split(',')[1];
     
@@ -104,7 +100,7 @@ CRITICAL: Identify the license plate (placa) with 100% accuracy. Look very close
 
 IMPORTANT: You MUST return the EXACT letters and numbers seen on the plate. NEVER use placeholders or generic characters. If the plate is 'MJC-0110', you must return 'MJC-0110'. If the plate is 'LMB6H44', you must return 'LMB6H44'. Pay special attention to the first 3 letters. If you cannot read a character, return null for the 'placa' field.
 
-Estimate the dirt level (nivel_sujeira: Leve, Médio, Pesado). Return a JSON object with these fields:
+Estimate the dirt level (nivel_sujeira: Leve, Médio, Pesado). Return ONLY a JSON object with these fields:
 {
   "marca": "string",
   "modelo": "string",
@@ -114,20 +110,38 @@ Estimate the dirt level (nivel_sujeira: Leve, Médio, Pesado). Return a JSON obj
   "nivel_sujeira": "string"
 }`;
 
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: base64Data
-        }
-      }
-    ]);
+    const requestBody = {
+      contents: [{
+        parts: [
+          { text: prompt },
+          {
+            inline_data: {
+              mime_type: "image/jpeg",
+              data: base64Data
+            }
+          }
+        ]
+      }]
+    };
 
-    const response = await result.response;
-    const text = response.text();
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error response:', errorText);
+      throw new Error(`Gemini API returned ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('Gemini raw response:', JSON.stringify(result));
     
-    // Log para debug
+    const text = result.candidates[0].content.parts[0].text;
     console.log('Gemini response text:', text);
     
     // Tentar extrair JSON da resposta
