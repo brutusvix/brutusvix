@@ -61,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!geminiApiKey) {
+    console.error('GEMINI_API_KEY not configured');
     return res.status(500).json({ error: 'Gemini API not configured' });
   }
 
@@ -82,6 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Imagem não fornecida' });
     }
 
+    console.log('Starting Gemini analysis for user:', user.id);
+    
     const genAI = new GoogleGenerativeAI(geminiApiKey);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash",
@@ -91,6 +94,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
     
     const base64Data = image.split(',')[1];
+    
+    if (!base64Data) {
+      return res.status(400).json({ error: 'Formato de imagem inválido' });
+    }
     
     const prompt = `Analyze this vehicle image. Identify the brand (marca), model (modelo), color (cor), and type (tipo: Carro, SUV, Moto, Caminhonete).
 
@@ -120,11 +127,23 @@ Estimate the dirt level (nivel_sujeira: Leve, Médio, Pesado). Return a JSON obj
 
     const response = await result.response;
     const text = response.text();
+    
+    // Log para debug
+    console.log('Gemini response text:', text);
+    
     const jsonResult = JSON.parse(text);
     
     return res.status(200).json(jsonResult);
   } catch (err: any) {
     console.error('Gemini API error:', err);
-    return res.status(500).json({ error: 'Failed to analyze image. Please try again.' });
+    console.error('Error details:', {
+      message: err.message,
+      stack: err.stack,
+      name: err.name
+    });
+    return res.status(500).json({ 
+      error: 'Failed to analyze image. Please try again.',
+      details: err.message 
+    });
   }
 }
