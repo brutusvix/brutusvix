@@ -199,13 +199,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log('Trying Gemini Vision for make/model/color...');
         console.log('Has Gemini API Key:', !!geminiApiKey);
         
-        const geminiPrompt = `Analise esta imagem de veículo e identifique APENAS:
-- Marca (ex: Volkswagen, Fiat, Chevrolet)
-- Modelo (ex: Gol, Uno, Onix)
-- Cor (ex: Branco, Preto, Prata)
-
-Responda SOMENTE com JSON puro, sem markdown:
-{"marca":"X","modelo":"Y","cor":"Z"}`;
+        const geminiPrompt = `Analise esta imagem de veículo e retorne APENAS um objeto JSON válido com marca, modelo e cor. Formato: {"marca":"Toyota","modelo":"Corolla","cor":"Prata"}`;
 
         const geminiResponse = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
@@ -225,9 +219,10 @@ Responda SOMENTE com JSON puro, sem markdown:
                 ]
               }],
               generationConfig: {
-                temperature: 0.2,
+                temperature: 0.1,
                 maxOutputTokens: 100,
-                responseMimeType: "application/json"
+                topP: 0.95,
+                topK: 40
               }
             })
           }
