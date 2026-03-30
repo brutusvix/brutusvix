@@ -597,6 +597,7 @@ async function startServer() {
       if (geminiApiKey && (!result.marca || !result.modelo || !result.cor)) {
         try {
           console.log('Trying Gemini Vision for make/model/color...');
+          console.log('Has Gemini API Key:', !!geminiApiKey);
           
           const geminiPrompt = `Analise esta imagem de veículo e identifique:
 - Marca (ex: Volkswagen, Fiat, Chevrolet)
@@ -635,11 +636,17 @@ Retorne APENAS um JSON válido com esta estrutura:
             }
           );
 
+          console.log('Gemini response status:', geminiResponse.status);
+
           if (geminiResponse.ok) {
             const geminiData = await geminiResponse.json();
+            console.log('Gemini raw response:', JSON.stringify(geminiData, null, 2));
+            
             const geminiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
             
             if (geminiText) {
+              console.log('Gemini text response:', geminiText);
+              
               // Extrair JSON da resposta
               let geminiResult;
               try {
@@ -656,13 +663,28 @@ Retorne APENAS um JSON válido com esta estrutura:
                 result.modelo = result.modelo || geminiResult.modelo;
                 result.cor = result.cor || geminiResult.cor;
                 console.log('Gemini enhanced result:', result);
+              } else {
+                console.log('Could not parse Gemini JSON response');
               }
+            } else {
+              console.log('No text in Gemini response');
             }
+          } else {
+            const errorText = await geminiResponse.text();
+            console.error('Gemini API error:', geminiResponse.status, errorText);
           }
-        } catch (geminiError) {
-          console.error('Gemini Vision error (non-critical):', geminiError);
+        } catch (geminiError: any) {
+          console.error('Gemini Vision error (non-critical):', geminiError.message);
+          console.error('Gemini error stack:', geminiError.stack);
           // Não falhar se Gemini não funcionar
         }
+      } else {
+        console.log('Skipping Gemini:', {
+          hasKey: !!geminiApiKey,
+          hasMarca: !!result.marca,
+          hasModelo: !!result.modelo,
+          hasCor: !!result.cor
+        });
       }
       
       res.json(result);
