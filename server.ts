@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { createClient } from '@supabase/supabase-js';
+import https from 'https';
 import { 
   createUserSchema, 
   updateUserSchema, 
@@ -40,12 +41,12 @@ async function startServer() {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://unpkg.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
-        connectSrc: ["'self'", "https://yfhiqhupuhrhsrzyqjli.supabase.co", "wss://yfhiqhupuhrhsrzyqjli.supabase.co", "https://unpkg.com", "https://cdn.jsdelivr.net", "ws://localhost:24678", "data:"],
+        connectSrc: ["'self'", "https://yfhiqhupuhrhsrzyqjli.supabase.co", "wss://yfhiqhupuhrhsrzyqjli.supabase.co", "ws://localhost:24678"],
         workerSrc: ["'self'", "blob:"],
         childSrc: ["'self'", "blob:"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       },
     },
     hsts: {
@@ -104,10 +105,11 @@ async function startServer() {
   // Rate limit específico para Gemini AI (custo financeiro)
   const aiLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hora
-    max: 20, // Máximo 20 análises por hora
+    max: 100, // Máximo 100 análises por hora (para testes)
     message: { error: 'Limite de análises de IA atingido. Tente em 1 hora.' },
     standardHeaders: true,
     legacyHeaders: false,
+    skipSuccessfulRequests: false,
   });
 
   // Aplicar rate limiting
@@ -130,11 +132,21 @@ async function startServer() {
     if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
 
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      // Usar anon key para validar token do cliente
+      const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+      if (!supabaseAnonKey) {
+        return res.status(500).json({ error: 'Supabase anon key not configured' });
+      }
+      
+      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+      const { data: { user }, error } = await supabaseClient.auth.getUser(token);
+      
       if (error || !user) {
+        console.error('Auth error:', error?.message);
         logSecurityEvent('Invalid auth token', 'medium', { 
           path: req.path,
-          ip: req.ip 
+          ip: req.ip,
+          error: error?.message 
         });
         return res.sendStatus(403);
       }
@@ -153,6 +165,7 @@ async function startServer() {
       };
       next();
     } catch (err) {
+      console.error('Authentication error:', err);
       logError('Authentication error', err as Error, { path: req.path });
       res.sendStatus(403);
     }
@@ -449,76 +462,144 @@ async function startServer() {
     res.json(services);
   });
 
-  // AI Vehicle Analysis Endpoint (MOVED FROM FRONTEND FOR SECURITY)
+  // AI Vehicle Analysis Endpoint - APENAS PlateRecognizer
   app.post('/api/analyze-vehicle', authenticateToken, aiLimiter, async (req: any, res) => {
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      return res.status(500).json({ error: 'Gemini API not configured on server' });
+    const plateRecognizerKey = process.env.PLATE_RECOGNIZER_API_KEY;
+    
+    if (!plateRecognizerKey) {
+      return res.status(500).json({ error: 'PlateRecognizer API não configurada' });
     }
 
     try {
-      // Validar input com Zod
-      const validatedData = analyzeVehicleSchema.parse(req.body);
-      const { image } = validatedData;
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        generationConfig: {
-          responseMimeType: "application/json",
-        }
-      });
+      const { image } = req.body;
+
+      if (!image || typeof image !== 'string') {
+        return res.status(400).json({ error: 'Imagem não fornecida' });
+      }
+
+      console.log('Starting vehicle analysis with PlateRecognizer for user:', req.user?.id);
       
       const base64Data = image.split(',')[1];
       
-      const prompt = `Analyze this vehicle image. Identify the brand (marca), model (modelo), color (cor), and type (tipo: Carro, SUV, Moto, Caminhonete).
+      if (!base64Data) {
+        return res.status(400).json({ error: 'Formato de imagem inválido' });
+      }
 
-CRITICAL: Identify the license plate (placa) with 100% accuracy. Look very closely at the characters on the plate. Support both standard Brazilian format (ABC-1234) and Mercosul format (ABC1D23).
+      let result: any = {
+        marca: null,
+        modelo: null,
+        cor: null,
+        tipo: 'Carro',
+        placa: null,
+        nivel_sujeira: 'Médio'
+      };
 
-IMPORTANT: You MUST return the EXACT letters and numbers seen on the plate. NEVER use placeholders or generic characters. If the plate is 'MJC-0110', you must return 'MJC-0110'. If the plate is 'LMB6H44', you must return 'LMB6H44'. Pay special attention to the first 3 letters. If you cannot read a character, return null for the 'placa' field.
+      // Usar PlateRecognizer com https nativo e multipart/form-data
+      try {
+        console.log('Calling PlateRecognizer API...');
+        
+        // Criar boundary para multipart/form-data
+        const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+        const base64Data = image.split(',')[1];
+        
+        // Construir corpo multipart/form-data
+        let body = '';
+        body += `--${boundary}\r\n`;
+        body += `Content-Disposition: form-data; name="upload"\r\n\r\n`;
+        body += `${base64Data}\r\n`;
+        body += `--${boundary}\r\n`;
+        body += `Content-Disposition: form-data; name="regions"\r\n\r\n`;
+        body += `br\r\n`;
+        body += `--${boundary}--\r\n`;
+        
+        const prData: any = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'api.platerecognizer.com',
+            port: 443,
+            path: '/v1/plate-reader/',
+            method: 'POST',
+            headers: {
+              'Authorization': `Token ${plateRecognizerKey}`,
+              'Content-Type': `multipart/form-data; boundary=${boundary}`,
+              'Content-Length': Buffer.byteLength(body)
+            },
+            timeout: 30000
+          };
 
-Estimate the dirt level (nivel_sujeira: Leve, Médio, Pesado). Return a JSON object with these fields:
-{
-  "marca": "string",
-  "modelo": "string",
-  "cor": "string",
-  "tipo": "string",
-  "placa": "string or null",
-  "nivel_sujeira": "string"
-}`;
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+              try {
+                resolve(JSON.parse(data));
+              } catch (e) {
+                reject(new Error('Invalid JSON response: ' + data));
+              }
+            });
+          });
 
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            mimeType: "image/jpeg",
-            data: base64Data
-          }
+          req.on('error', reject);
+          req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+          });
+
+          req.write(body);
+          req.end();
+        });
+
+        console.log('PlateRecognizer response:', JSON.stringify(prData, null, 2));
+
+        if (prData.error) {
+          console.error('PlateRecognizer API error:', prData);
+          return res.status(500).json({ 
+            error: 'Erro ao processar imagem com PlateRecognizer',
+            details: prData 
+          });
         }
-      ]);
-
-      const response = await result.response;
-      const text = response.text();
-      const jsonResult = JSON.parse(text);
-      
-      res.json(jsonResult);
-    } catch (err: any) {
-      // Erro de validação Zod
-      if (err.name === 'ZodError') {
-        return res.status(400).json({ 
-          error: 'Dados inválidos', 
-          details: err.errors.map((e: any) => ({
-            field: e.path.join('.'),
-            message: e.message
-          }))
+        
+        if (prData.results && prData.results.length > 0) {
+          const plateData = prData.results[0];
+          result.placa = plateData.plate;
+          
+          // PlateRecognizer também detecta marca/modelo/cor em alguns casos
+          if (plateData.vehicle) {
+            result.tipo = plateData.vehicle.type || result.tipo;
+            result.marca = plateData.vehicle.make || result.marca;
+            result.modelo = plateData.vehicle.model || result.modelo;
+            
+            // Cor pode vir como array
+            if (plateData.vehicle.color && Array.isArray(plateData.vehicle.color) && plateData.vehicle.color.length > 0) {
+              result.cor = plateData.vehicle.color[0].name || result.cor;
+            }
+          }
+          
+          console.log('Successfully extracted vehicle data:', result);
+        } else {
+          console.log('No plates detected in image');
+          return res.status(400).json({ 
+            error: 'Nenhuma placa detectada na imagem. Tire uma foto mais próxima da placa.' 
+          });
+        }
+      } catch (prError: any) {
+        console.error('PlateRecognizer error:', prError);
+        logError('PlateRecognizer API error', prError, { userId: req.user?.id });
+        return res.status(500).json({ 
+          error: 'Erro ao conectar com PlateRecognizer',
+          details: prError.message 
         });
       }
       
-      logError('Gemini API error', err, { userId: req.user?.id });
-      res.status(500).json({ error: 'Failed to analyze image. Please try again.' });
+      console.log('Final result:', result);
+      res.json(result);
+    } catch (err: any) {
+      console.error('Vehicle analysis error:', err);
+      logError('Vehicle analysis error', err, { userId: req.user?.id });
+      res.status(500).json({ error: 'Erro ao processar imagem. Tente novamente.' });
     }
   });
+
+  // Duplicate route removed - using PlateRecognizer implementation above
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {

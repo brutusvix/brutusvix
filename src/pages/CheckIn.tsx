@@ -116,27 +116,30 @@ export default function CheckIn() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao analisar imagem' }));
         throw new Error(errorData.error || 'Erro ao analisar imagem');
       }
 
       const result = await response.json();
       
-      console.log('Gemini AI Result:', result);
+      console.log('PlateRecognizer Result:', result);
       
       // Mapear tipo de veículo
       const typeMapping: Record<string, 'HATCH' | 'SEDAN' | 'SUV' | 'CAMINHONETE'> = {
         'Carro': 'HATCH',
+        'Car': 'HATCH',
         'Hatch': 'HATCH',
         'Sedan': 'SEDAN',
         'SUV': 'SUV',
         'Caminhonete': 'CAMINHONETE',
+        'Pickup': 'CAMINHONETE',
+        'Truck': 'CAMINHONETE',
         'Moto': 'HATCH',
       };
 
       const mappedType = typeMapping[result.tipo] || 'HATCH';
 
-      // Preencher todos os campos
+      // Preencher campos detectados
       if (result.placa) {
         const cleanPlate = result.placa.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         setPlate(cleanPlate);
@@ -146,13 +149,15 @@ export default function CheckIn() {
         brand: result.marca || '',
         model: result.modelo || '',
         color: result.cor || '',
-        type: mappedType,
-        plate: result.placa ? result.placa.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : ''
+        type: mappedType
       });
+
+      setAiResults(result);
       
     } catch (err: any) {
-      console.error("Gemini AI Error:", err);
-      setError(err.message || 'Erro ao processar imagem. Por favor, preencha manualmente.');
+      console.error("AI Analysis Error:", err);
+      // Não mostrar erro - apenas permitir entrada manual
+      setError('Não foi possível detectar automaticamente. Por favor, preencha manualmente os campos abaixo.');
     } finally {
       setIsAnalyzing(false);
     }

@@ -1,11 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
-const geminiApiKey = process.env.GEMINI_API_KEY;
+const plateRecognizerKey = process.env.PLATE_RECOGNIZER_API_KEY;
 
 // Rate limiting simples em memória (para produção, use Redis)
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
@@ -42,10 +41,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Rate limiting: 20 por hora
+  // Rate limiting: 100 por hora (para testes)
   const ip = req.headers['x-forwarded-for'] as string || req.headers['x-real-ip'] as string || 'unknown';
-  if (!checkRateLimit(ip, 20, 60 * 60 * 1000)) {
-    return res.status(429).json({ error: 'Limite de análises de IA atingido. Tente em 1 hora.' });
+  if (!checkRateLimit(ip, 100, 60 * 60 * 1000)) {
+    return res.status(429).json({ error: 'Limite de análises atingido. Tente em 1 hora.' });
   }
 
   // Autenticação
@@ -60,12 +59,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Supabase not configured' });
   }
 
-  if (!geminiApiKey) {
-    console.error('GEMINI_API_KEY not configured');
-    return res.status(500).json({ error: 'Gemini API not configured' });
+  if (!plateRecognizerKey) {
+    console.error('PLATE_RECOGNIZER_API_KEY not configured');
+    return res.status(500).json({ error: 'PlateRecognizer API não configurada' });
   }
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     // Usar o token do usuário para autenticar
@@ -83,92 +80,95 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Imagem não fornecida' });
     }
 
-    console.log('Starting Gemini analysis for user:', user.id);
-    
-    // Usar API REST diretamente com Gemini 2.0 Flash
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`;
+    console.log('Starting PlateRecognizer analysis for user:', user.id);
     
     const base64Data = image.split(',')[1];
     
     if (!base64Data) {
       return res.status(400).json({ error: 'Formato de imagem inválido' });
     }
-    
-    const prompt = `Analyze this vehicle image. Identify the brand (marca), model (modelo), color (cor), and type (tipo: Carro, SUV, Moto, Caminhonete).
 
-CRITICAL: Identify the license plate (placa) with 100% accuracy. Look very closely at the characters on the plate. Support both standard Brazilian format (ABC-1234) and Mercosul format (ABC1D23).
-
-IMPORTANT: You MUST return the EXACT letters and numbers seen on the plate. NEVER use placeholders or generic characters. If the plate is 'MJC-0110', you must return 'MJC-0110'. If the plate is 'LMB6H44', you must return 'LMB6H44'. Pay special attention to the first 3 letters. If you cannot read a character, return null for the 'placa' field.
-
-Estimate the dirt level (nivel_sujeira: Leve, Médio, Pesado). Return ONLY a JSON object with these fields:
-{
-  "marca": "string",
-  "modelo": "string",
-  "cor": "string",
-  "tipo": "string",
-  "placa": "string or null",
-  "nivel_sujeira": "string"
-}`;
-
-    const requestBody = {
-      contents: [{
-        parts: [
-          { text: prompt },
-          {
-            inline_data: {
-              mime_type: "image/jpeg",
-              data: base64Data
-            }
-          }
-        ]
-      }]
+    let result: any = {
+      marca: null,
+      modelo: null,
+      cor: null,
+      tipo: 'Carro',
+      placa: null,
+      nivel_sujeira: 'Médio'
     };
 
-    const response = await fetch(apiUrl, {
+    // Usar PlateRecognizer com multipart/form-data
+    console.log('Calling PlateRecognizer API...');
+    
+    // Criar boundary para multipart/form-data
+    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+    const base64Data = image.split(',')[1];
+    
+    // Construir corpo multipart/form-data
+    let body = '';
+    body += `--${boundary}\r\n`;
+    body += `Content-Disposition: form-data; name="upload"\r\n\r\n`;
+    body += `${base64Data}\r\n`;
+    body += `--${boundary}\r\n`;
+    body += `Content-Disposition: form-data; name="regions"\r\n\r\n`;
+    body += `br\r\n`;
+    body += `--${boundary}--\r\n`;
+    
+    const prResponse = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Authorization': `Token ${plateRecognizerKey}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
       },
-      body: JSON.stringify(requestBody)
+      body: body
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error response:', errorText);
-      throw new Error(`Gemini API returned ${response.status}: ${errorText}`);
-    }
+    const prData = await prResponse.json();
+    console.log('PlateRecognizer response:', JSON.stringify(prData, null, 2));
 
-    const result = await response.json();
-    console.log('Gemini raw response:', JSON.stringify(result));
-    
-    const text = result.candidates[0].content.parts[0].text;
-    console.log('Gemini response text:', text);
-    
-    // Tentar extrair JSON da resposta
-    let jsonResult;
-    try {
-      // Tentar parse direto
-      jsonResult = JSON.parse(text);
-    } catch {
-      // Se falhar, tentar extrair JSON de markdown
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonResult = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-      } else {
-        throw new Error('Could not parse JSON from response');
-      }
+    if (!prResponse.ok) {
+      console.error('PlateRecognizer API error:', prData);
+      return res.status(500).json({ 
+        error: 'Erro ao processar imagem com PlateRecognizer',
+        details: prData 
+      });
     }
     
-    return res.status(200).json(jsonResult);
+    if (prData.results && prData.results.length > 0) {
+      const plateData = prData.results[0];
+      result.placa = plateData.plate;
+      
+      // PlateRecognizer também detecta marca/modelo/cor em alguns casos
+      if (plateData.vehicle) {
+        result.tipo = plateData.vehicle.type || result.tipo;
+        result.marca = plateData.vehicle.make || result.marca;
+        result.modelo = plateData.vehicle.model || result.modelo;
+        
+        // Cor pode vir como array
+        if (plateData.vehicle.color && Array.isArray(plateData.vehicle.color) && plateData.vehicle.color.length > 0) {
+          result.cor = plateData.vehicle.color[0].name || result.cor;
+        }
+      }
+      
+      console.log('Successfully extracted vehicle data:', result);
+    } else {
+      console.log('No plates detected in image');
+      return res.status(400).json({ 
+        error: 'Nenhuma placa detectada na imagem. Tire uma foto mais próxima da placa.' 
+      });
+    }
+    
+    console.log('Final result:', result);
+    return res.status(200).json(result);
   } catch (err: any) {
-    console.error('Gemini API error:', err);
+    console.error('Vehicle analysis error:', err);
     console.error('Error details:', {
       message: err.message,
       stack: err.stack,
       name: err.name
     });
     return res.status(500).json({ 
-      error: 'Failed to analyze image. Please try again.',
+      error: 'Erro ao processar imagem. Tente novamente.',
       details: err.message 
     });
   }
