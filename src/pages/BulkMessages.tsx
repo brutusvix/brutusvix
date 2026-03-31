@@ -17,6 +17,9 @@ import { useData } from '../DataContext';
 import QRCode from 'qrcode';
 import { getValidToken } from '../utils/auth';
 
+// URL da API do WhatsApp (Render)
+const WHATSAPP_API = import.meta.env.VITE_WHATSAPP_API_URL || 'http://localhost:3001';
+
 const MESSAGE_TEMPLATES = [
   {
     id: 'rain',
@@ -72,7 +75,7 @@ export default function BulkMessages() {
         const token = await getValidToken();
         if (!token) return;
         
-        const response = await fetch('/api/whatsapp/status', {
+        const response = await fetch(`${WHATSAPP_API}/api/whatsapp/status`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -128,7 +131,7 @@ export default function BulkMessages() {
         return;
       }
       
-      await fetch('/api/whatsapp/connect', { 
+      await fetch(`${WHATSAPP_API}/api/whatsapp/connect`, { 
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -144,7 +147,7 @@ export default function BulkMessages() {
       const token = await getValidToken();
       if (!token) return;
       
-      await fetch('/api/whatsapp/config', {
+      await fetch(`${WHATSAPP_API}/api/whatsapp/config`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -183,7 +186,7 @@ export default function BulkMessages() {
           name: c.name
         }));
 
-      await fetch('/api/whatsapp/send', {
+      await fetch(`${WHATSAPP_API}/api/whatsapp/send`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -202,7 +205,7 @@ export default function BulkMessages() {
     const token = await getValidToken();
     if (!token) return;
     
-    await fetch('/api/whatsapp/pause', { 
+    await fetch(`${WHATSAPP_API}/api/whatsapp/pause`, { 
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -214,7 +217,7 @@ export default function BulkMessages() {
     const token = await getValidToken();
     if (!token) return;
     
-    await fetch('/api/whatsapp/resume', { 
+    await fetch(`${WHATSAPP_API}/api/whatsapp/resume`, { 
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -227,7 +230,7 @@ export default function BulkMessages() {
       const token = await getValidToken();
       if (!token) return;
       
-      await fetch('/api/whatsapp/stop', { 
+      await fetch(`${WHATSAPP_API}/api/whatsapp/stop`, { 
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
