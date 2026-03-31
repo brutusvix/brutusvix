@@ -64,7 +64,9 @@ Acesse: **http://localhost:3000**
 
 ## ⚠️ Avisos Importantes
 
-### WhatsApp
+### ⚠️ CRÍTICO: WhatsApp
+- ❌ **NÃO funciona na Vercel** (apenas local)
+- ✅ **Funciona em**: Railway, Render, VPS
 - ⚠️ Use número secundário
 - ⚠️ Risco de banimento
 - ⚠️ Limite: 100-200 msg/dia

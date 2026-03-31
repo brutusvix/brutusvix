@@ -187,6 +187,15 @@ O servidor estará rodando em: **http://localhost:3000**
 
 ## ⚠️ Avisos Importantes
 
+### ⚠️ CRÍTICO: WhatsApp NÃO FUNCIONA NA VERCEL
+- ❌ **Vercel não suporta Baileys** - Funções serverless não mantêm WebSocket persistente
+- ✅ **Funciona apenas localmente** - Use `npm run dev` no seu computador
+- ✅ **Alternativas para produção**:
+  - Railway (gratuito com limites)
+  - Render (gratuito com limites)
+  - VPS (DigitalOcean, AWS EC2)
+- 💡 **Solução temporária**: Rode o sistema localmente para usar WhatsApp
+
 ### WhatsApp
 - ⚠️ **USE UM NÚMERO SECUNDÁRIO** - Nunca use seu número pessoal ou comercial principal
 - ⚠️ **Risco de banimento** - Envio em massa pode resultar em banimento da conta
