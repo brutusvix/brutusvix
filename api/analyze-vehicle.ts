@@ -176,39 +176,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       
       console.log('Plate detected:', result.placa);
+      console.log('Final result:', result);
     } else {
       console.log('No plates detected in image');
       return res.status(400).json({ 
         error: 'Nenhuma placa detectada na imagem. Tire uma foto mais próxima da placa.' 
       });
     }
-    
-    // Buscar no cache do banco de dados
-    if (result.placa) {
-      console.log('Searching vehicle cache for plate:', result.placa);
-      
-      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-      const { data: cachedVehicle, error: cacheError } = await supabaseAdmin
-        .from('vehicle_cache')
-        .select('marca, modelo, cor, tipo')
-        .eq('placa', result.placa)
-        .single();
-      
-      if (!cacheError && cachedVehicle) {
-        console.log('Found in cache:', cachedVehicle);
-        result.marca = cachedVehicle.marca;
-        result.modelo = cachedVehicle.modelo;
-        result.cor = cachedVehicle.cor;
-        result.tipo = cachedVehicle.tipo || result.tipo;
-        
-        console.log('Final result (from cache):', result);
-        return res.status(200).json(result);
-      } else {
-        console.log('Not found in cache, user will fill manually');
-      }
-    }
-    
-    console.log('Final result:', result);
     
     return res.status(200).json(result);
   } catch (err: any) {

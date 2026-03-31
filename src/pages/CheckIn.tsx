@@ -210,13 +210,9 @@ export default function CheckIn() {
       }
 
       // 2. Ensure vehicle exists or create it
-      if (!vehicleInfo.brand || !vehicleInfo.model) {
-        throw new Error('Marca e modelo do veículo são obrigatórios');
-      }
-
       const vehicle = await addVehicle({
         client_id: client.id,
-        model: `${vehicleInfo.brand} ${vehicleInfo.model}`.trim(),
+        model: plate.toUpperCase(), // Usar placa como modelo temporário
         plate: plate.toUpperCase()
       });
 
@@ -243,8 +239,7 @@ export default function CheckIn() {
         washer_id: user?.id,
         vehicle_type: vehicleInfo.type,
         plate: plate.toUpperCase(),
-        vehicle_model: `${vehicleInfo.brand} ${vehicleInfo.model}`.trim(),
-        // vehicle_color removido - não existe na tabela
+        vehicle_model: plate.toUpperCase(), // Usar placa como identificação
         start_time: new Date().toISOString(),
         end_time: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
         status: 'EM_ANDAMENTO',
@@ -470,36 +465,6 @@ export default function CheckIn() {
                       value={plate}
                       unmask={false}
                       onAccept={(value) => setPlate(value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-zinc-400 ml-1">Marca</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Honda"
-                      className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
-                      value={vehicleInfo.brand}
-                      onChange={(e) => setVehicleInfo({...vehicleInfo, brand: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-zinc-400 ml-1">Modelo</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Civic"
-                      className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
-                      value={vehicleInfo.model}
-                      onChange={(e) => setVehicleInfo({...vehicleInfo, model: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-zinc-400 ml-1">Cor</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Prata"
-                      className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
-                      value={vehicleInfo.color}
-                      onChange={(e) => setVehicleInfo({...vehicleInfo, color: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">

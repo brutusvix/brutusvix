@@ -568,6 +568,7 @@ async function startServer() {
           }
           
           console.log('Plate detected:', result.placa);
+          console.log('Final result:', result);
         } else {
           console.log('No plates detected in image');
           return res.status(400).json({ 
@@ -582,32 +583,6 @@ async function startServer() {
           details: prError.message 
         });
       }
-      
-      // Buscar no cache do banco de dados
-      if (result.placa) {
-        console.log('Searching vehicle cache for plate:', result.placa);
-        
-        const { data: cachedVehicle, error: cacheError } = await supabase
-          .from('vehicle_cache')
-          .select('marca, modelo, cor, tipo')
-          .eq('placa', result.placa)
-          .single();
-        
-        if (!cacheError && cachedVehicle) {
-          console.log('Found in cache:', cachedVehicle);
-          result.marca = cachedVehicle.marca;
-          result.modelo = cachedVehicle.modelo;
-          result.cor = cachedVehicle.cor;
-          result.tipo = cachedVehicle.tipo || result.tipo;
-          
-          console.log('Final result (from cache):', result);
-          return res.json(result);
-        } else {
-          console.log('Not found in cache, user will fill manually');
-        }
-      }
-      
-      console.log('Final result:', result);
       
       res.json(result);
     } catch (err: any) {
