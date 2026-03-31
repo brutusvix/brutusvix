@@ -119,16 +119,6 @@ export default function CheckIn() {
         {step === 2 && (
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-zinc-700">Modelo do Veículo</label>
-              <input 
-                type="text" 
-                value={formData.model}
-                onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                placeholder="Ex: Toyota Corolla"
-                className="w-full px-4 py-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-brand-primary"
-              />
-            </div>
-            <div className="space-y-2">
               <label className="text-sm font-bold text-zinc-700">Placa</label>
               <input 
                 type="text" 
@@ -139,21 +129,11 @@ export default function CheckIn() {
                 className="w-full px-4 py-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-brand-primary font-mono"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-zinc-700">Cor</label>
-              <input 
-                type="text" 
-                value={formData.color}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                placeholder="Ex: Preto"
-                className="w-full px-4 py-3 bg-zinc-50 border-none rounded-xl focus:ring-2 focus:ring-brand-primary"
-              />
-            </div>
             <div className="flex gap-4">
               <button onClick={() => setStep(1)} className="flex-1 bg-zinc-100 text-zinc-600 py-4 rounded-xl font-bold hover:bg-zinc-200 transition-colors">Voltar</button>
               <button 
                 onClick={() => setStep(3)}
-                disabled={!formData.model || !formData.plate}
+                disabled={!formData.plate}
                 className="flex-[2] bg-zinc-900 text-white py-4 rounded-xl font-bold hover:bg-zinc-800 transition-colors disabled:opacity-50"
               >
                 Próximo Passo
