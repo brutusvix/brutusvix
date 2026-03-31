@@ -157,29 +157,15 @@ export default function CheckIn() {
 
       setAiResults(result);
       
-      // Mostrar mensagem se detecção foi parcial
-      const detectedFields = [
-        result.placa && 'placa',
-        result.marca && 'marca',
-        result.modelo && 'modelo',
-        result.cor && 'cor'
-      ].filter(Boolean);
-      
-      if (detectedFields.length < 4) {
-        const missingFields = [];
-        if (!result.marca) missingFields.push('marca');
-        if (!result.modelo) missingFields.push('modelo');
-        if (!result.cor) missingFields.push('cor');
-        
-        if (missingFields.length > 0) {
-          setError(`✅ Placa detectada! Por favor, preencha manualmente: ${missingFields.join(', ')}`);
-        }
+      // Mostrar mensagem de sucesso se placa foi detectada
+      if (result.placa) {
+        setError('✅ Placa detectada com sucesso!');
       }
       
     } catch (err: any) {
       console.error("AI Analysis Error:", err);
       // Não mostrar erro - apenas permitir entrada manual
-      setError('Não foi possível detectar automaticamente. Por favor, preencha manualmente os campos abaixo.');
+      setError('Não foi possível detectar a placa automaticamente. Por favor, preencha manualmente.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -404,8 +390,16 @@ export default function CheckIn() {
             </div>
 
             {error && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-500 text-sm">
-                <AlertCircle size={20} />
+              <div className={`p-4 rounded-2xl flex items-center gap-3 text-sm ${
+                error.includes('✅') 
+                  ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-500' 
+                  : 'bg-red-500/10 border border-red-500/20 text-red-500'
+              }`}>
+                {error.includes('✅') ? (
+                  <CheckCircle2 size={20} />
+                ) : (
+                  <AlertCircle size={20} />
+                )}
                 {error}
               </div>
             )}
