@@ -23,7 +23,6 @@ if (!JWT_SECRET) {
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
-const groqApiKey = process.env.GROQ_API_KEY;
 
 // Validação de variáveis de ambiente
 if (!supabaseUrl || !supabaseServiceKey) {
@@ -604,133 +603,11 @@ async function startServer() {
           console.log('Final result (from cache):', result);
           return res.json(result);
         } else {
-          console.log('Not found in cache, will try AI detection');
+          console.log('Not found in cache, user will fill manually');
         }
       }
       
       console.log('Final result:', result);
-      
-      // Se não encontrou no cache, tentar com Groq Vision
-      if (groqApiKey && (!result.marca || !result.modelo || !result.cor)) {
-        try {
-          console.log('Trying Groq Vision for make/model/color...');
-          console.log('Has Groq API Key:', !!groqApiKey);
-          
-          const groqPrompt = `Analise esta imagem de veículo e identifique:
-- Marca (ex: Volkswagen, Fiat, Chevrolet, Toyota)
-- Modelo (ex: Gol, Uno, Onix, Corolla)
-- Cor (ex: Branco, Preto, Prata, Vermelho)
-
-Responda APENAS com um objeto JSON válido neste formato exato:
-{"marca":"Volkswagen","modelo":"Gol","cor":"Branco"}`;
-
-          const groqResponse = await fetch(
-            'https://api.groq.com/openai/v1/chat/completions',
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${groqApiKey}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                model: 'llama-3.2-90b-vision-preview',
-                messages: [
-                  {
-                    role: 'user',
-                    content: [
-                      {
-                        type: 'text',
-                        text: groqPrompt
-                      },
-                      {
-                        type: 'image_url',
-                        image_url: {
-                          url: `data:image/jpeg;base64,${base64Data}`
-                        }
-                      }
-                    ]
-                  }
-                ],
-                temperature: 0.1,
-                max_tokens: 100
-              })
-            }
-          );
-
-          console.log('Groq response status:', groqResponse.status);
-
-          if (groqResponse.ok) {
-            const groqData = await groqResponse.json();
-            console.log('Groq raw response:', JSON.stringify(groqData, null, 2));
-            
-            const groqText = groqData.choices?.[0]?.message?.content;
-            
-            if (groqText) {
-              console.log('Groq text response:', groqText);
-              
-              // Limpar resposta (remover markdown se houver)
-              let cleanText = groqText.trim();
-              cleanText = cleanText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-              
-              // Extrair JSON da resposta
-              let groqResult;
-              try {
-                groqResult = JSON.parse(cleanText);
-              } catch {
-                const jsonMatch = cleanText.match(/\{[^}]*\}/);
-                if (jsonMatch) {
-                  try {
-                    groqResult = JSON.parse(jsonMatch[0]);
-                  } catch (e) {
-                    console.log('Failed to parse extracted JSON:', jsonMatch[0]);
-                  }
-                }
-              }
-              
-              if (groqResult) {
-                result.marca = result.marca || groqResult.marca;
-                result.modelo = result.modelo || groqResult.modelo;
-                result.cor = result.cor || groqResult.cor;
-                console.log('Groq enhanced result:', result);
-                
-                // Salvar no cache para próxima vez
-                if (result.placa && (result.marca || result.modelo || result.cor)) {
-                  console.log('Saving to cache:', result);
-                  await supabase
-                    .from('vehicle_cache')
-                    .upsert({
-                      placa: result.placa,
-                      marca: result.marca,
-                      modelo: result.modelo,
-                      cor: result.cor,
-                      tipo: result.tipo
-                    }, {
-                      onConflict: 'placa'
-                    });
-                }
-              } else {
-                console.log('Could not parse Groq JSON response');
-              }
-            } else {
-              console.log('No text in Groq response');
-            }
-          } else {
-            const errorText = await groqResponse.text();
-            console.error('Groq API error:', groqResponse.status, errorText);
-          }
-        } catch (groqError: any) {
-          console.error('Groq Vision error (non-critical):', groqError.message);
-          console.error('Groq error stack:', groqError.stack);
-          // Não falhar se Groq não funcionar
-        }
-      } else {
-        console.log('Skipping Groq:', {
-          hasKey: !!groqApiKey,
-          hasMarca: !!result.marca,
-          hasModelo: !!result.modelo,
-          hasCor: !!result.cor
-        });
-      }
       
       res.json(result);
     } catch (err: any) {
