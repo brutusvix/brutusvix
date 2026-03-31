@@ -15,6 +15,7 @@ import LiveQueue from './pages/LiveQueue';
 import MyProduction from './pages/MyProduction';
 import ProductionPayroll from './pages/ProductionPayroll';
 import PublicBooking from './pages/PublicBooking';
+import BulkMessages from './pages/BulkMessages';
 import { DataProvider } from './DataContext';
 import { User } from './types';
 
@@ -75,6 +76,7 @@ export default function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="my-production" element={<MyProduction />} />
               <Route path="payroll" element={<ProductionPayroll />} />
+              <Route path="bulk-messages" element={<BulkMessages />} />
             </Route>
           </Routes>
         </BrowserRouter>

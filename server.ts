@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -15,6 +17,7 @@ import {
   analyzeVehicleSchema 
 } from './src/validation/schemas.js';
 import logger, { logError, logUserAction, logApiAccess, logSecurityEvent } from './src/utils/logger.js';
+import { whatsappService } from './whatsapp-service';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -33,6 +36,15 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function startServer() {
   const app = express();
+  const httpServer = createServer(app);
+  const io = new Server(httpServer, {
+    cors: {
+      origin: process.env.NODE_ENV === 'production' 
+        ? (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean)
+        : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
+      credentials: true
+    }
+  });
   const PORT = 3000;
 
   // Helmet - Headers de segurança
@@ -81,7 +93,7 @@ async function startServer() {
   // Rate Limiting - Proteção contra DDoS e brute force
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 50, // Reduzido de 100 para 50
+    max: 200, // Aumentado de 50 para 200 para permitir polling
     message: { error: 'Muitas requisições. Tente novamente em 15 minutos.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -594,6 +606,178 @@ async function startServer() {
 
   // Duplicate route removed - using PlateRecognizer implementation above
 
+  // WhatsApp API Endpoints
+  io.on('connection', (socket) => {
+    console.log('Client connected to WhatsApp updates');
+    
+    socket.on('disconnect', () => {
+      console.log('Client disconnected from WhatsApp updates');
+    });
+  });
+
+  // Configurar eventos do WhatsApp para enviar via Socket.io
+  whatsappService.on('qr', (qr) => {
+    io.emit('whatsapp:qr', qr);
+  });
+
+  whatsappService.on('connected', () => {
+    io.emit('whatsapp:connected');
+  });
+
+  whatsappService.on('disconnected', () => {
+    io.emit('whatsapp:disconnected');
+  });
+
+  whatsappService.on('message-sent', (data) => {
+    io.emit('whatsapp:message-sent', data);
+  });
+
+  whatsappService.on('message-failed', (data) => {
+    io.emit('whatsapp:message-failed', data);
+  });
+
+  whatsappService.on('queue-updated', (status) => {
+    io.emit('whatsapp:queue-updated', status);
+  });
+
+  whatsappService.on('sending-started', () => {
+    io.emit('whatsapp:sending-started');
+  });
+
+  whatsappService.on('sending-finished', (data) => {
+    io.emit('whatsapp:sending-finished', data);
+  });
+
+  whatsappService.on('paused', () => {
+    io.emit('whatsapp:paused');
+  });
+
+  whatsappService.on('resumed', () => {
+    io.emit('whatsapp:resumed');
+  });
+
+  whatsappService.on('stopped', () => {
+    io.emit('whatsapp:stopped');
+  });
+
+  // Conectar WhatsApp
+  app.post('/api/whatsapp/connect', authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'DONO') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+
+    try {
+      console.log('Connecting WhatsApp for user:', req.user.email);
+      await whatsappService.initialize();
+      console.log('WhatsApp initialization started');
+      res.json({ success: true, message: 'Inicializando conexão...' });
+    } catch (error: any) {
+      console.error('Error connecting WhatsApp:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Status do WhatsApp
+  app.get('/api/whatsapp/status', authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'DONO') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+
+    try {
+      const status = whatsappService.getStatus();
+      res.json(status);
+    } catch (error: any) {
+      console.error('Error getting WhatsApp status:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Atualizar configurações
+  app.post('/api/whatsapp/config', authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'DONO') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+
+    try {
+      const { interval, dailyLimit, startHour, endHour } = req.body;
+      whatsappService.updateConfig({ interval, dailyLimit, startHour, endHour });
+      res.json({ success: true, message: 'Configurações atualizadas' });
+    } catch (error: any) {
+      console.error('Error updating WhatsApp config:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Adicionar mensagens à fila
+  app.post('/api/whatsapp/send', authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'DONO') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+
+    try {
+      const { recipients, message } = req.body;
+      
+      if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+        return res.status(400).json({ error: 'Lista de destinatários inválida' });
+      }
+
+      if (!message || typeof message !== 'string' || message.trim() === '') {
+        return res.status(400).json({ error: 'Mensagem inválida' });
+      }
+
+      await whatsappService.addToQueue(recipients, message);
+      res.json({ success: true, message: 'Mensagens adicionadas à fila' });
+    } catch (error: any) {
+      console.error('Error adding to queue:', error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Pausar envio
+  app.post('/api/whatsapp/pause', authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'DONO') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+
+    try {
+      whatsappService.pause();
+      res.json({ success: true, message: 'Envio pausado' });
+    } catch (error: any) {
+      console.error('Error pausing WhatsApp:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Retomar envio
+  app.post('/api/whatsapp/resume', authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'DONO') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+
+    try {
+      whatsappService.resume();
+      res.json({ success: true, message: 'Envio retomado' });
+    } catch (error: any) {
+      console.error('Error resuming WhatsApp:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Parar envio
+  app.post('/api/whatsapp/stop', authenticateToken, async (req: any, res) => {
+    if (req.user.role !== 'DONO') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+
+    try {
+      whatsappService.stop();
+      res.json({ success: true, message: 'Envio parado' });
+    } catch (error: any) {
+      console.error('Error stopping WhatsApp:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -609,9 +793,10 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     if (process.env.NODE_ENV !== 'production') {
       logger.info(`✅ Server running on http://localhost:${PORT}`);
+      logger.info(`✅ Socket.io ready for WhatsApp updates`);
     } else {
       logger.info('Server started', { port: PORT });
     }

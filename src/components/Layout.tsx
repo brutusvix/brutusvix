@@ -13,7 +13,8 @@ import {
   Award,
   ClipboardCheck,
   Monitor,
-  TrendingUp
+  TrendingUp,
+  MessageSquare
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clsx, type ClassValue } from 'clsx';
@@ -41,6 +42,7 @@ export default function Layout() {
     { icon: Users, label: 'Funcionários', path: '/staff', roles: ['DONO'] },
     { icon: Award, label: 'Fidelidade', path: '/loyalty', roles: ['DONO', 'LAVADOR'] },
     { icon: DollarSign, label: 'Financeiro', path: '/finance', roles: ['DONO'] },
+    { icon: MessageSquare, label: 'Mensagens', path: '/bulk-messages', roles: ['DONO'] },
     { icon: TrendingUp, label: 'Produção', path: '/payroll', roles: ['DONO'] },
     { icon: TrendingUp, label: 'Minha Produção', path: '/my-production', roles: ['LAVADOR'] },
     { icon: Settings, label: 'Ajustes', path: '/settings', roles: ['DONO'] },

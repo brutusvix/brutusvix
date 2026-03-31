@@ -12,6 +12,10 @@ const Clients = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [showOnlyRewards, setShowOnlyRewards] = useState(false);
+  
+  // Estados para o formulário de novo cliente
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
 
   const filteredClients = clients.filter(client => {
     const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -47,6 +51,35 @@ const Clients = () => {
     }
     const message = encodeURIComponent(`Olá ${client.name}! Você atingiu ${client.points} pontos em nosso lava-rápido e ganhou uma lavagem grátis! 🎉`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+  };
+
+  const handleAddClient = async () => {
+    if (!newClientName.trim() || !newClientPhone.trim()) {
+      alert('Preencha nome e telefone');
+      return;
+    }
+
+    try {
+      const unitId = user?.role === 'LAVADOR' ? user.unit_id : (selectedUnit === 'all' ? units[0]?.id : parseInt(selectedUnit));
+      
+      await addClient({
+        name: newClientName.trim(),
+        phone: newClientPhone,
+        unit_id: unitId,
+        points: 0,
+        total_spent: 0
+      });
+
+      // Limpar formulário e fechar modal
+      setNewClientName('');
+      setNewClientPhone('');
+      setShowAddModal(false);
+      
+      alert('Cliente adicionado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao adicionar cliente:', error);
+      alert(error.message || 'Erro ao adicionar cliente');
+    }
   };
 
   return (
@@ -185,11 +218,37 @@ const Clients = () => {
           <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-3xl w-full max-w-md p-6">
             <h2 className="text-xl font-bold text-zinc-100 mb-4 tracking-tight">Novo Cliente</h2>
             <div className="space-y-4">
-              <input type="text" placeholder="Nome" className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-700" />
-              <IMaskInput mask="(00) 00000-0000" placeholder="Telefone" className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-700" />
+              <input 
+                type="text" 
+                placeholder="Nome" 
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-700" 
+              />
+              <IMaskInput 
+                mask="(00) 00000-0000" 
+                placeholder="Telefone" 
+                value={newClientPhone}
+                onAccept={(value) => setNewClientPhone(value)}
+                className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-700" 
+              />
               <div className="flex gap-4">
-                <button onClick={() => setShowAddModal(false)} className="flex-1 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-800/50 text-zinc-300 py-2.5 rounded-xl font-medium transition-colors text-sm">Cancelar</button>
-                <button onClick={() => setShowAddModal(false)} className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 py-2.5 rounded-xl font-medium transition-colors text-sm">Salvar</button>
+                <button 
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setNewClientName('');
+                    setNewClientPhone('');
+                  }} 
+                  className="flex-1 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-800/50 text-zinc-300 py-2.5 rounded-xl font-medium transition-colors text-sm"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleAddClient} 
+                  className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 py-2.5 rounded-xl font-medium transition-colors text-sm"
+                >
+                  Salvar
+                </button>
               </div>
             </div>
           </div>

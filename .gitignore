@@ -7,3 +7,4 @@ coverage/
 .env*
 !.env.example
 logs/
+auth_info_baileys/
