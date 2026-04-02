@@ -55,6 +55,9 @@ export default function CheckIn() {
   });
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Opção de cadastrar sem placa
+  const [skipPlate, setSkipPlate] = useState(false);
 
   // Definir unidade padrão ao carregar
   React.useEffect(() => {
@@ -173,7 +176,8 @@ export default function CheckIn() {
 
   const handleCompleteCheckIn = async () => {
     if (!selectedClient && !showNewClientForm) return;
-    if (!selectedService || !plate) return;
+    if (!selectedService) return;
+    if (!skipPlate && !plate) return; // Só exige placa se não estiver pulando
     if (isSubmitting) return;
 
     setIsSubmitting(true);
@@ -195,15 +199,18 @@ export default function CheckIn() {
         throw new Error('Erro ao obter dados do cliente. Tente novamente.');
       }
 
-      // 2. Ensure vehicle exists or create it
-      const vehicle = await addVehicle({
-        client_id: client.id,
-        model: plate.toUpperCase(), // Usar placa como modelo temporário
-        plate: plate.toUpperCase()
-      });
+      // 2. Ensure vehicle exists or create it (apenas se tiver placa)
+      let vehicle = null;
+      if (!skipPlate && plate) {
+        vehicle = await addVehicle({
+          client_id: client.id,
+          model: plate.toUpperCase(), // Usar placa como modelo temporário
+          plate: plate.toUpperCase()
+        });
 
-      if (!vehicle || !vehicle.id) {
-        throw new Error('Erro ao registrar veículo. Tente novamente.');
+        if (!vehicle || !vehicle.id) {
+          throw new Error('Erro ao registrar veículo. Tente novamente.');
+        }
       }
 
       // Calcular preços (usar customizado se definido, senão usar o padrão)
@@ -219,13 +226,13 @@ export default function CheckIn() {
       // 3. Add appointment
       await addAppointment({
         client_id: client.id,
-        vehicle_id: vehicle.id,
+        vehicle_id: vehicle?.id || null, // Pode ser null se não tiver placa
         service_id: selectedService.id,
         unit_id: user?.unit_id || (units[0]?.id as any) || '',
         washer_id: user?.id,
         vehicle_type: vehicleInfo.type,
-        plate: plate.toUpperCase(),
-        vehicle_model: plate.toUpperCase(), // Usar placa como identificação
+        plate: skipPlate ? '' : plate.toUpperCase(),
+        vehicle_model: skipPlate ? 'Sem placa' : plate.toUpperCase(),
         start_time: new Date().toISOString(),
         end_time: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
         status: 'EM_ANDAMENTO',
@@ -250,6 +257,7 @@ export default function CheckIn() {
       setCustomServicePrice(null);
       setCustomExtraPrices({});
       setCategoryFilter('TODOS');
+      setSkipPlate(false);
       alert('Check-in realizado com sucesso! Serviço iniciado.');
     } catch (error: any) {
       console.error("Erro ao finalizar check-in:", error);
@@ -372,12 +380,14 @@ export default function CheckIn() {
                 <h2 className="text-xl font-bold tracking-tight">Identificar Veículo</h2>
               </div>
               <div className="flex gap-2">
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 px-3 py-2 rounded-xl text-xs font-bold hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
-                >
-                  <Camera size={16} strokeWidth={1.5} /> Foto com IA
-                </button>
+                {!skipPlate && (
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 bg-emerald-500/10 text-emerald-500 px-3 py-2 rounded-xl text-xs font-bold hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
+                  >
+                    <Camera size={16} strokeWidth={1.5} /> Foto com IA
+                  </button>
+                )}
               </div>
               <input 
                 type="file" 
@@ -389,7 +399,31 @@ export default function CheckIn() {
               />
             </div>
 
-            {error && (
+            {/* Toggle para cadastrar sem placa */}
+            <div className="bg-zinc-800/30 border border-zinc-700/50 rounded-2xl p-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={skipPlate}
+                  onChange={(e) => {
+                    setSkipPlate(e.target.checked);
+                    if (e.target.checked) {
+                      setPlate('');
+                      setCapturedPhoto(null);
+                      setAiResults(null);
+                      setError(null);
+                    }
+                  }}
+                  className="w-5 h-5 rounded border-zinc-600 bg-zinc-900/50 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                />
+                <div className="flex-1">
+                  <p className="text-zinc-100 font-medium text-sm">Cadastrar cliente sem placa</p>
+                  <p className="text-zinc-500 text-xs mt-0.5">Útil para serviços sem veículo ou quando a placa não está disponível</p>
+                </div>
+              </label>
+            </div>
+
+            {!skipPlate && error && (
               <div className={`p-4 rounded-2xl flex items-center gap-3 text-sm ${
                 error.includes('✅') 
                   ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-500' 
@@ -404,7 +438,7 @@ export default function CheckIn() {
               </div>
             )}
 
-            {isAnalyzing ? (
+            {!skipPlate && isAnalyzing ? (
               <div className="py-12 flex flex-col items-center justify-center space-y-4 bg-zinc-900/50 rounded-3xl border border-zinc-800/50 border-dashed">
                 <div className="relative">
                   <Loader2 className="w-12 h-12 text-zinc-400 animate-spin" strokeWidth={1.5} />
@@ -417,7 +451,7 @@ export default function CheckIn() {
               </div>
             ) : (
               <>
-                {capturedPhoto && (
+                {!skipPlate && capturedPhoto && (
                   <div className="relative group">
                     <img 
                       src={capturedPhoto} 
@@ -432,35 +466,51 @@ export default function CheckIn() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-zinc-400 ml-1">Placa</label>
-                    <IMaskInput
-                      mask={[
-                        { mask: 'aaa-0000' },
-                        { mask: 'aaa0a00' }
-                      ]}
-                      definitions={{
-                        'a': /[A-Za-z]/,
-                        '0': /[0-9]/
-                      }}
-                      dispatch={(appended, dynamicMasked) => {
-                        const value = (dynamicMasked.value + appended).replace(/[^A-Za-z0-9]/g, '');
-                        // No Brasil, a diferença entre placa comum (ABC-1234) e Mercosul (ABC1D23)
-                        // é o 5º caractere (índice 4). Se for letra, é Mercosul.
-                        if (value.length >= 5 && /[A-Za-z]/.test(value[4])) {
-                          return dynamicMasked.compiledMasks[1];
-                        }
-                        return dynamicMasked.compiledMasks[0];
-                      }}
-                      prepare={(str) => str.toUpperCase()}
-                      placeholder="ABC-1234 ou ABC1D23"
-                      className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-xl font-mono text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700 uppercase"
-                      value={plate}
-                      unmask={false}
-                      onAccept={(value) => setPlate(value)}
-                    />
+                {!skipPlate ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-zinc-400 ml-1">Placa</label>
+                      <IMaskInput
+                        mask={[
+                          { mask: 'aaa-0000' },
+                          { mask: 'aaa0a00' }
+                        ]}
+                        definitions={{
+                          'a': /[A-Za-z]/,
+                          '0': /[0-9]/
+                        }}
+                        dispatch={(appended, dynamicMasked) => {
+                          const value = (dynamicMasked.value + appended).replace(/[^A-Za-z0-9]/g, '');
+                          // No Brasil, a diferença entre placa comum (ABC-1234) e Mercosul (ABC1D23)
+                          // é o 5º caractere (índice 4). Se for letra, é Mercosul.
+                          if (value.length >= 5 && /[A-Za-z]/.test(value[4])) {
+                            return dynamicMasked.compiledMasks[1];
+                          }
+                          return dynamicMasked.compiledMasks[0];
+                        }}
+                        prepare={(str) => str.toUpperCase()}
+                        placeholder="ABC-1234 ou ABC1D23"
+                        className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-xl font-mono text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700 uppercase"
+                        value={plate}
+                        unmask={false}
+                        onAccept={(value) => setPlate(value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-zinc-400 ml-1">Tipo de Veículo</label>
+                      <select
+                        className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+                        value={vehicleInfo.type}
+                        onChange={(e) => setVehicleInfo({...vehicleInfo, type: e.target.value as any})}
+                      >
+                        <option value="HATCH">Hatch</option>
+                        <option value="SEDAN">Sedan</option>
+                        <option value="SUV">SUV</option>
+                        <option value="CAMINHONETE">Caminhonete</option>
+                      </select>
+                    </div>
                   </div>
+                ) : (
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-zinc-400 ml-1">Tipo de Veículo</label>
                     <select
@@ -474,9 +524,9 @@ export default function CheckIn() {
                       <option value="CAMINHONETE">Caminhonete</option>
                     </select>
                   </div>
-                </div>
+                )}
 
-                {aiResults && (
+                {!skipPlate && aiResults && (
                   <div className="p-4 bg-zinc-900/50 border border-zinc-800/50 rounded-2xl">
                     <div className="flex items-center gap-2 mb-2">
                       <Sparkles className="text-emerald-500" size={16} strokeWidth={1.5} />
@@ -496,7 +546,7 @@ export default function CheckIn() {
                 )}
 
                 <button
-                  disabled={!plate}
+                  disabled={!skipPlate && !plate}
                   onClick={() => setStep(2)}
                   className="w-full bg-zinc-100 disabled:opacity-50 text-zinc-950 py-4 rounded-2xl font-bold text-lg hover:bg-white transition-all flex items-center justify-center gap-2"
                 >
