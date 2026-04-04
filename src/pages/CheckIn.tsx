@@ -58,6 +58,12 @@ export default function CheckIn() {
   
   // Opção de cadastrar sem placa
   const [skipPlate, setSkipPlate] = useState(false);
+  
+  // Nome do carro (obrigatório)
+  const [carName, setCarName] = useState('');
+  
+  // Data do serviço (padrão: hoje)
+  const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Definir unidade padrão ao carregar
   React.useEffect(() => {
@@ -199,13 +205,13 @@ export default function CheckIn() {
         throw new Error('Erro ao obter dados do cliente. Tente novamente.');
       }
 
-      // 2. Ensure vehicle exists or create it (apenas se tiver placa)
+      // 2. Ensure vehicle exists or create it (apenas se tiver placa ou carName)
       let vehicle = null;
-      if (!skipPlate && plate) {
+      if (carName.trim()) {
         vehicle = await addVehicle({
           client_id: client.id,
-          model: plate.toUpperCase(), // Usar placa como modelo temporário
-          plate: plate.toUpperCase()
+          model: carName.trim(), // Usar nome do carro digitado
+          plate: skipPlate ? '' : plate.toUpperCase()
         });
 
         if (!vehicle || !vehicle.id) {
@@ -223,18 +229,23 @@ export default function CheckIn() {
       const baseServicePrice = selectedService.prices[vehicleInfo.type] || 0;
       const servicePrice = customServicePrice !== null ? customServicePrice : baseServicePrice;
 
+      // Criar data com hora atual mas dia escolhido
+      const now = new Date();
+      const selectedDate = new Date(serviceDate + 'T00:00:00');
+      selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+
       // 3. Add appointment
       await addAppointment({
         client_id: client.id,
-        vehicle_id: vehicle?.id || null, // Pode ser null se não tiver placa
+        vehicle_id: vehicle?.id || null, // Pode ser null se não tiver veículo
         service_id: selectedService.id,
         unit_id: user?.unit_id || (units[0]?.id as any) || '',
         washer_id: user?.id,
         vehicle_type: vehicleInfo.type,
         plate: skipPlate ? '' : plate.toUpperCase(),
-        vehicle_model: skipPlate ? 'Sem placa' : plate.toUpperCase(),
-        start_time: new Date().toISOString(),
-        end_time: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+        vehicle_model: carName.trim() || 'Sem identificação',
+        start_time: selectedDate.toISOString(), // Usa data escolhida + hora atual
+        end_time: new Date(selectedDate.getTime() + 90 * 60 * 1000).toISOString(),
         status: 'EM_ANDAMENTO',
         total_price: servicePrice + extrasPrice,
         extras: selectedExtras,
@@ -250,6 +261,8 @@ export default function CheckIn() {
       setShowNewClientForm(false);
       setNewClient({ name: '', phone: '' });
       setPlate('');
+      setCarName('');
+      setServiceDate(new Date().toISOString().split('T')[0]);
       setSearchTerm('');
       setCapturedPhoto(null);
       setAiResults(null);
@@ -423,6 +436,19 @@ export default function CheckIn() {
               </label>
             </div>
 
+            {/* Data do Serviço */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-zinc-400 ml-1">Data do Serviço</label>
+              <input
+                type="date"
+                value={serviceDate}
+                max={new Date().toISOString().split('T')[0]}
+                onChange={(e) => setServiceDate(e.target.value)}
+                className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+              />
+              <p className="text-zinc-500 text-xs ml-1">Padrão: hoje. Permite lançamentos retroativos.</p>
+            </div>
+
             {!skipPlate && error && (
               <div className={`p-4 rounded-2xl flex items-center gap-3 text-sm ${
                 error.includes('✅') 
@@ -497,6 +523,16 @@ export default function CheckIn() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <label className="block text-sm font-medium text-zinc-400 ml-1">Nome do Carro *</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Gol, Civic, Corolla"
+                        value={carName}
+                        onChange={(e) => setCarName(e.target.value)}
+                        className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
                       <label className="block text-sm font-medium text-zinc-400 ml-1">Tipo de Veículo</label>
                       <select
                         className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
@@ -511,18 +547,30 @@ export default function CheckIn() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-zinc-400 ml-1">Tipo de Veículo</label>
-                    <select
-                      className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
-                      value={vehicleInfo.type}
-                      onChange={(e) => setVehicleInfo({...vehicleInfo, type: e.target.value as any})}
-                    >
-                      <option value="HATCH">Hatch</option>
-                      <option value="SEDAN">Sedan</option>
-                      <option value="SUV">SUV</option>
-                      <option value="CAMINHONETE">Caminhonete</option>
-                    </select>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-zinc-400 ml-1">Nome do Carro *</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Gol, Civic, Corolla"
+                        value={carName}
+                        onChange={(e) => setCarName(e.target.value)}
+                        className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-zinc-400 ml-1">Tipo de Veículo</label>
+                      <select
+                        className="w-full bg-zinc-900/50 border border-zinc-800/50 rounded-2xl py-3 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+                        value={vehicleInfo.type}
+                        onChange={(e) => setVehicleInfo({...vehicleInfo, type: e.target.value as any})}
+                      >
+                        <option value="HATCH">Hatch</option>
+                        <option value="SEDAN">Sedan</option>
+                        <option value="SUV">SUV</option>
+                        <option value="CAMINHONETE">Caminhonete</option>
+                      </select>
+                    </div>
                   </div>
                 )}
 
@@ -546,7 +594,7 @@ export default function CheckIn() {
                 )}
 
                 <button
-                  disabled={!skipPlate && !plate}
+                  disabled={!carName.trim() || (!skipPlate && !plate)}
                   onClick={() => setStep(2)}
                   className="w-full bg-zinc-100 disabled:opacity-50 text-zinc-950 py-4 rounded-2xl font-bold text-lg hover:bg-white transition-all flex items-center justify-center gap-2"
                 >
