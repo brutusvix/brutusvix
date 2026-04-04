@@ -76,6 +76,19 @@ export default function Agenda() {
   const [selExtras, setSelExtras]         = useState<string[]>([]);
   const [bookingError, setBookingError]   = useState<string | null>(null);
   const [openMenuId, setOpenMenuId]       = useState<string | null>(null);
+  
+  // Estados para novo sistema de pagamento
+  const [payments, setPayments] = useState<Record<string, number>>({
+    DINHEIRO: 0,
+    CARTAO_DEBITO: 0,
+    CARTAO_CREDITO: 0,
+    LINK_PAGAMENTO: 0,
+    PIX: 0
+  });
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+  const [paymentValue, setPaymentValue] = useState('');
+  const [showPixQR, setShowPixQR] = useState(false);
 
   const weekDays = useMemo(() => getWeekDays(weekRef), [weekRef]);
   const today    = useMemo(() => new Date(), []);
@@ -635,10 +648,246 @@ export default function Agenda() {
       )}
 
       {/* ── Modal: Pagamento ────────────────────────────────────────────────── */}
-      {paymentAppt && (
+      {paymentAppt && !showPixQR && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6">
+            <h2 className="text-2xl font-bold text-zinc-100 mb-6">Pagamento</h2>
+            
+            {/* Valor Total e Restante */}
+            <div className="text-center mb-6">
+              <div className="text-4xl font-bold text-zinc-100 mb-2">
+                R$ {paymentAppt.total_price?.toFixed(2) || '0,00'}
+              </div>
+              <div className="text-lg text-zinc-400">
+                Restante: R$ {(
+                  (paymentAppt.total_price || 0) - 
+                  Object.values(payments).reduce((a, b) => a + b, 0)
+                ).toFixed(2)}
+              </div>
+            </div>
+
+            {/* Formas de Pagamento */}
+            <div className="space-y-3 mb-6">
+              <p className="text-sm font-medium text-zinc-400 mb-3">Formas de Pagamento:</p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {/* Dinheiro */}
+                <button
+                  onClick={() => {
+                    setSelectedPaymentMethod('DINHEIRO');
+                    setPaymentValue(((paymentAppt.total_price || 0) - Object.values(payments).reduce((a, b) => a + b, 0)).toFixed(2));
+                    setShowPaymentModal(true);
+                  }}
+                  className="bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl p-4 text-left transition-colors"
+                >
+                  <div className="text-2xl mb-2">💵</div>
+                  <div className="text-sm font-medium text-zinc-300">Dinheiro</div>
+                  <div className="text-xs text-emerald-500 font-bold mt-1">
+                    R$ {payments.DINHEIRO.toFixed(2)}
+                  </div>
+                </button>
+
+                {/* Cartão Débito */}
+                <button
+                  onClick={() => {
+                    setSelectedPaymentMethod('CARTAO_DEBITO');
+                    setPaymentValue(((paymentAppt.total_price || 0) - Object.values(payments).reduce((a, b) => a + b, 0)).toFixed(2));
+                    setShowPaymentModal(true);
+                  }}
+                  className="bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl p-4 text-left transition-colors"
+                >
+                  <div className="text-2xl mb-2">💳</div>
+                  <div className="text-sm font-medium text-zinc-300">Cartão Débito</div>
+                  <div className="text-xs text-emerald-500 font-bold mt-1">
+                    R$ {payments.CARTAO_DEBITO.toFixed(2)}
+                  </div>
+                </button>
+
+                {/* Cartão Crédito */}
+                <button
+                  onClick={() => {
+                    setSelectedPaymentMethod('CARTAO_CREDITO');
+                    setPaymentValue(((paymentAppt.total_price || 0) - Object.values(payments).reduce((a, b) => a + b, 0)).toFixed(2));
+                    setShowPaymentModal(true);
+                  }}
+                  className="bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl p-4 text-left transition-colors"
+                >
+                  <div className="text-2xl mb-2">💳</div>
+                  <div className="text-sm font-medium text-zinc-300">Cartão Crédito</div>
+                  <div className="text-xs text-emerald-500 font-bold mt-1">
+                    R$ {payments.CARTAO_CREDITO.toFixed(2)}
+                  </div>
+                </button>
+
+                {/* Link Pagamento */}
+                <button
+                  onClick={() => {
+                    setShowPixQR(true);
+                  }}
+                  className="bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl p-4 text-left transition-colors"
+                >
+                  <div className="text-2xl mb-2">🔗</div>
+                  <div className="text-sm font-medium text-zinc-300">Link Pagamento</div>
+                  <div className="text-xs text-emerald-500 font-bold mt-1">
+                    R$ {payments.LINK_PAGAMENTO.toFixed(2)}
+                  </div>
+                </button>
+
+                {/* PIX */}
+                <button
+                  onClick={() => {
+                    setShowPixQR(true);
+                  }}
+                  className="bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl p-4 text-left transition-colors col-span-2"
+                >
+                  <div className="text-2xl mb-2">📱</div>
+                  <div className="text-sm font-medium text-zinc-300">PIX</div>
+                  <div className="text-xs text-emerald-500 font-bold mt-1">
+                    R$ {payments.PIX.toFixed(2)}
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Botão Finalizar */}
+            <button
+              disabled={Object.values(payments).reduce((a, b) => a + b, 0) === 0}
+              onClick={async () => {
+                try {
+                  // Criar transações para cada forma de pagamento
+                  for (const [method, value] of Object.entries(payments)) {
+                    if (value > 0) {
+                      await supabase.from('transactions').insert({
+                        unit_id: paymentAppt.unit_id,
+                        type: 'INCOME',
+                        amount: value,
+                        category: 'SERVICO',
+                        description: `${method.replace('_', ' ')} - ${services.find(s => s.id === paymentAppt.service_id)?.name || 'Serviço'}`,
+                        date: new Date().toISOString(),
+                        payment_method: method
+                      });
+                    }
+                  }
+                  
+                  // Finalizar agendamento
+                  await updateAppointment(paymentAppt.id, { status: 'FINALIZADO' });
+                  
+                  // Reset
+                  setPayments({
+                    DINHEIRO: 0,
+                    CARTAO_DEBITO: 0,
+                    CARTAO_CREDITO: 0,
+                    LINK_PAGAMENTO: 0,
+                    PIX: 0
+                  });
+                  setPaymentAppt(null);
+                  alert('Pagamento finalizado com sucesso!');
+                } catch (error) {
+                  console.error('Erro ao finalizar pagamento:', error);
+                  alert('Erro ao finalizar pagamento');
+                }
+              }}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition-colors"
+            >
+              Finalizar Pagamento
+            </button>
+
+            <button
+              onClick={() => {
+                setPaymentAppt(null);
+                setPayments({
+                  DINHEIRO: 0,
+                  CARTAO_DEBITO: 0,
+                  CARTAO_CREDITO: 0,
+                  LINK_PAGAMENTO: 0,
+                  PIX: 0
+                });
+              }}
+              className="w-full text-zinc-500 py-2 text-sm hover:text-zinc-300 mt-2"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Adicionar Valor */}
+      {showPaymentModal && selectedPaymentMethod && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-sm rounded-2xl p-6">
+            <h3 className="text-xl font-bold text-zinc-100 mb-4">
+              {selectedPaymentMethod.replace('_', ' ')}
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-zinc-400 mb-1">Valor Total: R$ {paymentAppt.total_price?.toFixed(2)}</p>
+                <p className="text-sm text-zinc-400 mb-3">
+                  Restante: R$ {(
+                    (paymentAppt.total_price || 0) - 
+                    Object.values(payments).reduce((a, b) => a + b, 0)
+                  ).toFixed(2)}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-2">Valor a pagar:</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={paymentValue}
+                  onChange={(e) => setPaymentValue(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-100 text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="0,00"
+                  autoFocus
+                />
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                <p className="text-xs text-yellow-500">
+                  ⚠️ Confirme o valor antes de adicionar o pagamento
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedPaymentMethod(null);
+                    setPaymentValue('');
+                  }}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    const value = parseFloat(paymentValue) || 0;
+                    if (value > 0) {
+                      setPayments(prev => ({
+                        ...prev,
+                        [selectedPaymentMethod]: prev[selectedPaymentMethod as keyof typeof prev] + value
+                      }));
+                    }
+                    setShowPaymentModal(false);
+                    setSelectedPaymentMethod(null);
+                    setPaymentValue('');
+                  }}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-colors"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: QR Code PIX */}
+      {showPixQR && paymentAppt && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-zinc-900 border border-zinc-800 w-full max-w-sm rounded-2xl p-6 text-center space-y-5">
-            <h2 className="text-xl font-black text-zinc-100">Finalizar Pagamento</h2>
+            <h2 className="text-xl font-bold text-zinc-100">QR Code PIX</h2>
             <div className="bg-white p-3 rounded-xl">
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
@@ -648,30 +897,34 @@ export default function Agenda() {
                 className="w-full h-auto"
               />
             </div>
-            <p className="text-sm text-zinc-400">Escaneie para pagar via PIX.</p>
+            <p className="text-sm text-zinc-400">Escaneie para pagar via PIX</p>
+            
             <div className="space-y-2">
-              <button
-                onClick={() => { setPaymentAppt(null); setExtraAppt(paymentAppt); }}
-                className="w-full bg-brand-primary text-zinc-950 py-3 rounded-xl font-black hover:bg-brand-primary-hover transition-colors"
-              >
-                Confirmar Pagamento PIX ✓
-              </button>
               <a
-                href={`https://wa.me/55${(clients.find(c => c.id === paymentAppt.client_id)?.phone ?? '').replace(/\D/g,'')}?text=${encodeURIComponent('PIX Copia e Cola:\n00020126360014br.gov.bcb.pix0114+55279962430265204000053039865802BR5925')}`}
+                href={`https://wa.me/55${(clients.find(c => c.id === paymentAppt.client_id)?.phone ?? '').replace(/\D/g,'')}?text=${encodeURIComponent('PIX Copia e Cola:\n00020126360014br.gov.bcb.pix0114+55279962430265204000053039865802BR592562_116_905_RENAN_BENTO_DE6007Vitoria610929032-56962290525FBB500815319177377989446663047C76')}`}
                 target="_blank" rel="noopener noreferrer"
                 className="w-full block bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-colors"
               >
                 Enviar PIX via WhatsApp
               </a>
-              <a
-                href="https://link.maquinadecartao.com.br/brutus"
-                target="_blank" rel="noopener noreferrer"
-                className="w-full block bg-zinc-800 hover:bg-zinc-700 text-zinc-200 py-3 rounded-xl font-bold transition-colors"
+              
+              <button
+                onClick={() => {
+                  setShowPixQR(false);
+                  setSelectedPaymentMethod(paymentAppt.total_price > Object.values(payments).reduce((a, b) => a + b, 0) ? 'PIX' : 'LINK_PAGAMENTO');
+                  setPaymentValue(((paymentAppt.total_price || 0) - Object.values(payments).reduce((a, b) => a + b, 0)).toFixed(2));
+                  setShowPaymentModal(true);
+                }}
+                className="w-full bg-zinc-100 hover:bg-white text-zinc-950 py-3 rounded-xl font-bold transition-colors"
               >
-                Link Máquina de Cartão
-              </a>
-              <button onClick={() => setPaymentAppt(null)} className="w-full text-zinc-500 py-2 text-sm hover:text-zinc-300">
-                Cancelar
+                Adicionar Valor Recebido
+              </button>
+              
+              <button
+                onClick={() => setShowPixQR(false)}
+                className="w-full text-zinc-500 py-2 text-sm hover:text-zinc-300"
+              >
+                Voltar
               </button>
             </div>
           </div>

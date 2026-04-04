@@ -123,6 +123,7 @@ export interface Transaction {
   description: string;
   category: TransactionCategory;
   date: string;
+  payment_method?: 'DINHEIRO' | 'CARTAO_DEBITO' | 'CARTAO_CREDITO' | 'LINK_PAGAMENTO' | 'PIX';
 }
 
 export interface Client {
