@@ -240,7 +240,7 @@ const Finance = () => {
               };
 
               // Somar valores por forma de pagamento (apenas INCOME com payment_method)
-              filteredTransactions
+              (filteredTransactions || [])
                 .filter(t => t.type === 'INCOME' && t.payment_method)
                 .forEach(t => {
                   if (t.payment_method && paymentMethods[t.payment_method]) {
