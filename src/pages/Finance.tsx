@@ -204,7 +204,7 @@ const Finance = () => {
         ))}
       </div>
 
-      {/* Gráfico + Produção */}
+      {/* Gráfico + Resumo de Pagamentos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-2xl p-6 space-y-6">
           <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
@@ -224,28 +224,97 @@ const Finance = () => {
           </div>
         </div>
 
+        {/* Card de Resumo de Formas de Pagamento */}
         <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-2xl p-6 space-y-6">
           <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
-            <Users size={20} strokeWidth={1.5} className="text-zinc-400" /> Produção dos Lavadores
+            <DollarSign size={20} strokeWidth={1.5} className="text-emerald-500" /> Formas de Pagamento
           </h3>
-          <div className="space-y-4">
-            {washerProduction.length === 0 && (
-              <p className="text-zinc-600 text-sm text-center py-4">Nenhum dado para este período.</p>
-            )}
-            {washerProduction.map(w => (
-              <div key={w.id} className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-800/50 flex items-center justify-between">
-                <div>
-                  <div className="text-zinc-100 font-medium">{w.name}</div>
-                  <div className="text-zinc-500 text-xs">{w.unit}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-emerald-500 font-bold">R$ {(w.total ?? 0).toFixed(2)}</div>
-                  <div className="text-zinc-400 text-xs">{w.count} carro{w.count !== 1 ? 's' : ''} lavado{w.count !== 1 ? 's' : ''}</div>
-                  <div className="text-brand-primary text-xs font-bold mt-0.5">Comissão: R$ {(w as any).comissao?.toFixed(2) ?? '0.00'}</div>
-                </div>
-              </div>
-            ))}
+          <div className="space-y-3">
+            {(() => {
+              const paymentMethods = {
+                DINHEIRO: { label: 'Dinheiro', icon: '💵', value: 0 },
+                CARTAO_DEBITO: { label: 'Cartão Débito', icon: '💳', value: 0 },
+                CARTAO_CREDITO: { label: 'Cartão Crédito', icon: '💳', value: 0 },
+                LINK_PAGAMENTO: { label: 'Link Pagamento', icon: '🔗', value: 0 },
+                PIX: { label: 'PIX', icon: '📱', value: 0 }
+              };
+
+              // Somar valores por forma de pagamento (apenas INCOME com payment_method)
+              filteredTransactions
+                .filter(t => t.type === 'INCOME' && t.payment_method)
+                .forEach(t => {
+                  if (t.payment_method && paymentMethods[t.payment_method]) {
+                    paymentMethods[t.payment_method].value += t.amount;
+                  }
+                });
+
+              const totalPayments = Object.values(paymentMethods).reduce((acc, pm) => acc + pm.value, 0);
+              const hasPayments = totalPayments > 0;
+
+              return (
+                <>
+                  {!hasPayments && (
+                    <p className="text-zinc-600 text-sm text-center py-8">
+                      Nenhum pagamento registrado neste período
+                    </p>
+                  )}
+                  {hasPayments && (
+                    <>
+                      {Object.entries(paymentMethods).map(([key, pm]) => (
+                        pm.value > 0 && (
+                          <div key={key} className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-xl border border-zinc-800/50">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{pm.icon}</span>
+                              <span className="text-zinc-300 font-medium text-sm">{pm.label}</span>
+                            </div>
+                            <span className="text-emerald-500 font-bold">
+                              R$ {pm.value.toFixed(2)}
+                            </span>
+                          </div>
+                        )
+                      ))}
+                      <div className="pt-3 mt-3 border-t border-zinc-800/50">
+                        <div className="flex items-center justify-between p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">💰</span>
+                            <span className="text-emerald-500 font-bold">Total Recebido</span>
+                          </div>
+                          <span className="text-emerald-500 font-bold text-lg">
+                            R$ {totalPayments.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
+        </div>
+      </div>
+
+      {/* Produção dos Lavadores */}
+      <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-2xl p-6 space-y-6">
+        <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
+          <Users size={20} strokeWidth={1.5} className="text-zinc-400" /> Produção dos Lavadores
+        </h3>
+        <div className="space-y-4">
+          {washerProduction.length === 0 && (
+            <p className="text-zinc-600 text-sm text-center py-4">Nenhum dado para este período.</p>
+          )}
+          {washerProduction.map(w => (
+            <div key={w.id} className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-800/50 flex items-center justify-between">
+              <div>
+                <div className="text-zinc-100 font-medium">{w.name}</div>
+                <div className="text-zinc-500 text-xs">{w.unit}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-emerald-500 font-bold">R$ {(w.total ?? 0).toFixed(2)}</div>
+                <div className="text-zinc-400 text-xs">{w.count} carro{w.count !== 1 ? 's' : ''} lavado{w.count !== 1 ? 's' : ''}</div>
+                <div className="text-brand-primary text-xs font-bold mt-0.5">Comissão: R$ {(w as any).comissao?.toFixed(2) ?? '0.00'}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
