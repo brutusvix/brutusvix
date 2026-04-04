@@ -13,6 +13,7 @@ const Finance = () => {
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('month');
   const [showAddModal, setShowAddModal]       = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
+  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const getLocalDateStr = () => new Date().toLocaleDateString('en-CA');
 
   const [newTransaction, setNewTransaction] = useState({
@@ -98,6 +99,38 @@ const Finance = () => {
 
   const handleDeleteClick = (id: string) => {
     if (confirm('Tem certeza que deseja excluir esta transação?')) deleteTransaction(id);
+  };
+
+  const toggleTransactionSelection = (id: string) => {
+    setSelectedTransactions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTransactions.size === combinedEntries.length) {
+      setSelectedTransactions(new Set());
+    } else {
+      setSelectedTransactions(new Set(combinedEntries.map(t => t.originalId)));
+    }
+  };
+
+  const deleteSelectedTransactions = () => {
+    if (selectedTransactions.size === 0) {
+      alert('Selecione pelo menos uma transação para excluir');
+      return;
+    }
+    
+    if (confirm(`Tem certeza que deseja excluir ${selectedTransactions.size} transação(ões)? Esta ação não pode ser desfeita.`)) {
+      selectedTransactions.forEach(id => deleteTransaction(id));
+      setSelectedTransactions(new Set());
+    }
   };
 
   const exportPDF = () => {
@@ -253,38 +286,30 @@ const Finance = () => {
 
               return (
                 <>
-                  {!hasPayments && (
-                    <p className="text-zinc-600 text-sm text-center py-8">
-                      Nenhum pagamento registrado neste período
-                    </p>
-                  )}
-                  {hasPayments && (
-                    <>
-                      {Object.entries(paymentMethods).map(([key, pm]) => (
-                        pm.value > 0 && (
-                          <div key={key} className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-xl border border-zinc-800/50">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">{pm.icon}</span>
-                              <span className="text-zinc-300 font-medium text-sm">{pm.label}</span>
-                            </div>
-                            <span className="text-emerald-500 font-bold">
-                              R$ {pm.value.toFixed(2)}
-                            </span>
-                          </div>
-                        )
-                      ))}
-                      <div className="pt-3 mt-3 border-t border-zinc-800/50">
-                        <div className="flex items-center justify-between p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">💰</span>
-                            <span className="text-emerald-500 font-bold">Total Recebido</span>
-                          </div>
-                          <span className="text-emerald-500 font-bold text-lg">
-                            R$ {totalPayments.toFixed(2)}
-                          </span>
-                        </div>
+                  {Object.entries(paymentMethods).map(([key, pm]) => (
+                    <div key={key} className="flex items-center justify-between p-3 bg-zinc-800/30 rounded-xl border border-zinc-800/50">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{pm.icon}</span>
+                        <span className="text-zinc-300 font-medium text-sm">{pm.label}</span>
                       </div>
-                    </>
+                      <span className={`font-bold ${pm.value > 0 ? 'text-emerald-500' : 'text-zinc-600'}`}>
+                        R$ {pm.value.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                  
+                  {totalPayments > 0 && (
+                    <div className="pt-3 mt-3 border-t border-zinc-800/50">
+                      <div className="flex items-center justify-between p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">💰</span>
+                          <span className="text-emerald-500 font-bold">Total Recebido</span>
+                        </div>
+                        <span className="text-emerald-500 font-bold text-lg">
+                          R$ {totalPayments.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </>
               );
@@ -322,24 +347,43 @@ const Finance = () => {
       <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-2xl overflow-hidden">
         <div className="p-6 border-b border-zinc-800/50 flex items-center justify-between">
           <h3 className="text-lg font-bold text-zinc-100">Últimas Transações</h3>
-          <button
-            onClick={() => {
-              const last5 = combinedEntries.slice(0, 5);
-              if (last5.length === 0) return;
-              if (confirm(`Tem certeza que deseja apagar as últimas ${last5.length} transação(ões)? Esta ação não pode ser desfeita.`)) {
-                last5.forEach(t => deleteTransaction(t.originalId));
-              }
-            }}
-            className="text-red-500/70 hover:text-red-500 text-xs font-bold flex items-center gap-1.5 transition-colors"
-          >
-            <Trash2 size={14} strokeWidth={1.5} />
-            Apagar Últimas ({combinedEntries.slice(0, 5).length})
-          </button>
+          <div className="flex items-center gap-3">
+            {selectedTransactions.size > 0 && (
+              <button
+                onClick={deleteSelectedTransactions}
+                className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
+              >
+                <Trash2 size={16} strokeWidth={1.5} />
+                Excluir Selecionadas ({selectedTransactions.size})
+              </button>
+            )}
+            <button
+              onClick={() => {
+                const last5 = combinedEntries.slice(0, 5);
+                if (last5.length === 0) return;
+                if (confirm(`Tem certeza que deseja apagar as últimas ${last5.length} transação(ões)? Esta ação não pode ser desfeita.`)) {
+                  last5.forEach(t => deleteTransaction(t.originalId));
+                }
+              }}
+              className="text-red-500/70 hover:text-red-500 text-xs font-bold flex items-center gap-1.5 transition-colors"
+            >
+              <Trash2 size={14} strokeWidth={1.5} />
+              Apagar Últimas ({combinedEntries.slice(0, 5).length})
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left min-w-[600px]">
             <thead>
               <tr className="bg-zinc-800/50">
+                <th className="px-6 py-4 text-zinc-400 font-medium text-sm w-12">
+                  <input
+                    type="checkbox"
+                    checked={selectedTransactions.size === combinedEntries.length && combinedEntries.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-brand-primary focus:ring-brand-primary focus:ring-offset-0"
+                  />
+                </th>
                 {['Data','Descrição','Categoria','Tipo','Valor','Ações'].map(h => (
                   <th key={h} className={`px-6 py-4 text-zinc-400 font-medium text-sm ${h === 'Valor' || h === 'Ações' ? 'text-right' : ''}`}>{h}</th>
                 ))}
@@ -348,6 +392,14 @@ const Finance = () => {
             <tbody className="divide-y divide-zinc-800/60">
               {combinedEntries.slice(0, 10).map(t => (
                 <tr key={t.id} className="hover:bg-zinc-800/30 transition-colors">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedTransactions.has(t.originalId)}
+                      onChange={() => toggleTransactionSelection(t.originalId)}
+                      className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-brand-primary focus:ring-brand-primary focus:ring-offset-0"
+                    />
+                  </td>
                   <td className="px-6 py-4 text-zinc-400 text-sm">{new Date(t.date).toLocaleDateString()}</td>
                   <td className="px-6 py-4 text-sm max-w-[250px]">
                     <p className="text-zinc-100 font-medium truncate">{t.description}</p>

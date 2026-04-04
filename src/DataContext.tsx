@@ -160,6 +160,7 @@ function mapTransaction(row: any): Transaction {
     category: row.category,
     description: row.description || '',
     date: row.date,
+    payment_method: row.payment_method,
   };
 }
 

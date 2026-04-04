@@ -754,14 +754,9 @@ export default function Agenda() {
               disabled={Object.values(payments).reduce((a, b) => a + b, 0) === 0}
               onClick={async () => {
                 try {
-                  console.log('Iniciando finalização de pagamento...');
-                  console.log('Pagamentos:', payments);
-                  
                   // Criar transações para cada forma de pagamento
                   for (const [method, value] of Object.entries(payments)) {
                     if (value > 0) {
-                      console.log(`Criando transação: ${method} = R$ ${value}`);
-                      
                       const transactionData = {
                         unit_id: paymentAppt.unit_id,
                         type: 'INCOME',
@@ -772,16 +767,12 @@ export default function Agenda() {
                         payment_method: method
                       };
                       
-                      console.log('Dados da transação:', transactionData);
-                      
-                      const { data, error } = await supabase.from('transactions').insert(transactionData);
+                      const { error } = await supabase.from('transactions').insert(transactionData);
                       
                       if (error) {
                         console.error('Erro ao criar transação:', error);
                         throw error;
                       }
-                      
-                      console.log('Transação criada com sucesso:', data);
                     }
                   }
                   
