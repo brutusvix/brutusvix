@@ -7,7 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const Finance = () => {
-  const { transactions, appointments, users, units, services, extras, clients, production, addTransaction, updateTransaction, deleteTransaction } = useData();
+  const { transactions, appointments, users, units, services, extras, clients, production, loading, addTransaction, updateTransaction, deleteTransaction } = useData();
   const { user } = useAuth();
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'last30' | 'custom'>('month');
