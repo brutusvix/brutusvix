@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../DataContext';
 import { DollarSign, TrendingUp, TrendingDown, Users, Download, Plus, Edit2, Trash2 } from 'lucide-react';
 import { useAuth } from '../App';
@@ -10,10 +10,13 @@ const Finance = () => {
   const { transactions, appointments, users, units, services, extras, clients, production, addTransaction, updateTransaction, deleteTransaction } = useData();
   const { user } = useAuth();
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
-  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('month');
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'last30' | 'custom'>('month');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
   const [showAddModal, setShowAddModal]       = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<string | null>(null);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+  const [isLoadingData, setIsLoadingData] = useState(false);
   const getLocalDateStr = () => new Date().toLocaleDateString('en-CA');
 
   const [newTransaction, setNewTransaction] = useState({
@@ -24,8 +27,31 @@ const Finance = () => {
   const filterDate = (dateString: string) => {
     const now = new Date();
     const d   = new Date(dateString);
-    if (period === 'today') return d.toDateString() === now.toDateString();
-    if (period === 'week')  { const w = new Date(now); w.setDate(now.getDate() - 7); return d >= w; }
+    
+    if (period === 'today') {
+      return d.toDateString() === now.toDateString();
+    }
+    
+    if (period === 'week') {
+      const w = new Date(now);
+      w.setDate(now.getDate() - 7);
+      return d >= w;
+    }
+    
+    if (period === 'last30') {
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(now.getDate() - 30);
+      return d >= thirtyDaysAgo;
+    }
+    
+    if (period === 'custom' && customStartDate && customEndDate) {
+      const start = new Date(customStartDate);
+      const end = new Date(customEndDate);
+      end.setHours(23, 59, 59, 999); // Incluir o dia inteiro
+      return d >= start && d <= end;
+    }
+    
+    // month - mês atual
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   };
 
@@ -36,6 +62,11 @@ const Finance = () => {
       : selectedUnit === 'all' || t.unit_id === selectedUnit;
     return unitMatch && filterDate(t.date);
   });
+
+  // Mostrar loading quando estiver carregando dados
+  React.useEffect(() => {
+    setIsLoadingData(loading);
+  }, [loading]);
 
   const income   = filteredTransactions.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0);
   const expenses = filteredTransactions.filter(t => t.type === 'EXPENSE').reduce((acc, t) => acc + t.amount, 0);
@@ -135,15 +166,45 @@ const Finance = () => {
 
   const exportPDF = () => {
     const doc = new jsPDF();
+    
+    // Título
+    doc.setFontSize(18);
     doc.text('Relatório Financeiro', 14, 15);
+    
+    // Período
+    doc.setFontSize(10);
+    let periodText = '';
+    if (period === 'today') periodText = 'Hoje';
+    else if (period === 'week') periodText = 'Últimos 7 dias';
+    else if (period === 'last30') periodText = 'Últimos 30 dias';
+    else if (period === 'month') periodText = 'Mês atual';
+    else if (period === 'custom' && customStartDate && customEndDate) {
+      periodText = `${new Date(customStartDate).toLocaleDateString('pt-BR')} até ${new Date(customEndDate).toLocaleDateString('pt-BR')}`;
+    }
+    doc.text(`Período: ${periodText}`, 14, 22);
+    
+    // Resumo financeiro
+    doc.setFontSize(12);
+    doc.text('Resumo Financeiro', 14, 32);
+    doc.setFontSize(10);
+    doc.text(`Faturamento Total: R$ ${income.toFixed(2)}`, 14, 38);
+    doc.text(`Despesas Totais: R$ ${expenses.toFixed(2)}`, 14, 44);
+    doc.text(`Lucro Líquido: R$ ${balance.toFixed(2)}`, 14, 50);
+    
+    // Tabela de transações
     autoTable(doc, {
+      startY: 58,
       head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']],
       body: combinedEntries.map(t => [
-        new Date(t.date).toLocaleDateString(), t.description, t.category,
-        t.type === 'INCOME' ? 'Entrada' : 'Saída', `R$ ${(t.amount ?? 0).toFixed(2)}`,
+        new Date(t.date).toLocaleDateString('pt-BR'), 
+        t.description, 
+        t.category,
+        t.type === 'INCOME' ? 'Entrada' : 'Saída', 
+        `R$ ${(t.amount ?? 0).toFixed(2)}`,
       ]),
     });
-    doc.save('relatorio-financeiro.pdf');
+    
+    doc.save(`relatorio-financeiro-${new Date().toLocaleDateString('en-CA')}.pdf`);
   };
 
   const chartData = ['Seg','Ter','Qua','Qui','Sex','Sab','Dom'].map((name, index) => {
@@ -189,12 +250,18 @@ const Finance = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-xl p-1">
-            {(['today','week','month'] as const).map(p => (
+            {(['today','week','last30','month'] as const).map(p => (
               <button key={p} onClick={() => setPeriod(p)}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === p ? 'bg-zinc-800/50 text-zinc-100 border border-zinc-800/50' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                {p === 'today' ? 'Hoje' : p === 'week' ? 'Semana' : 'Mês'}
+                {p === 'today' ? 'Hoje' : p === 'week' ? '7 Dias' : p === 'last30' ? '30 Dias' : 'Mês Atual'}
               </button>
             ))}
+            <button 
+              onClick={() => setPeriod('custom')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === 'custom' ? 'bg-zinc-800/50 text-zinc-100 border border-zinc-800/50' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Personalizado
+            </button>
           </div>
           {user?.role === 'DONO' && (
             <>
@@ -219,6 +286,62 @@ const Finance = () => {
         </div>
       </div>
 
+      {/* Seletor de período customizado */}
+      {period === 'custom' && (
+        <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-2xl p-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-zinc-400 mb-2">Data Inicial</label>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-zinc-400 mb-2">Data Final</label>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                  setCustomStartDate(firstDay.toLocaleDateString('en-CA'));
+                  setCustomEndDate(today.toLocaleDateString('en-CA'));
+                }}
+                className="bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+              >
+                Este Mês
+              </button>
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                  const lastDayOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                  setCustomStartDate(lastMonth.toLocaleDateString('en-CA'));
+                  setCustomEndDate(lastDayOfLastMonth.toLocaleDateString('en-CA'));
+                }}
+                className="bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+              >
+                Mês Passado
+              </button>
+            </div>
+          </div>
+          {customStartDate && customEndDate && (
+            <p className="text-sm text-zinc-500 mt-3">
+              Exibindo dados de {new Date(customStartDate).toLocaleDateString('pt-BR')} até {new Date(customEndDate).toLocaleDateString('pt-BR')}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Cards de resumo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
@@ -231,7 +354,13 @@ const Finance = () => {
               <span className="text-zinc-500 text-sm font-medium">{label}</span>
               <div className={`p-2 bg-${color}-500/10 rounded-lg text-${color}-500 border border-${color}-500/20`}>{icon}</div>
             </div>
-            <div className="text-3xl font-bold text-zinc-100">R$ {(value ?? 0).toFixed(2)}</div>
+            {isLoadingData ? (
+              <div className="animate-pulse">
+                <div className="h-9 bg-zinc-800 rounded w-32"></div>
+              </div>
+            ) : (
+              <div className="text-3xl font-bold text-zinc-100">R$ {(value ?? 0).toFixed(2)}</div>
+            )}
             <div className={`text-xs text-${color}-500`}>{sub}</div>
           </div>
         ))}
@@ -262,7 +391,13 @@ const Finance = () => {
           <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
             <DollarSign size={20} strokeWidth={1.5} className="text-emerald-500" /> Formas de Pagamento
           </h3>
-          <div className="space-y-3">
+          
+          {isLoadingData ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
+            </div>
+          ) : (
+            <div className="space-y-3">
             {(() => {
               const paymentMethods = {
                 DINHEIRO: { label: 'Dinheiro', icon: '💵', value: 0 },
@@ -315,6 +450,7 @@ const Finance = () => {
               );
             })()}
           </div>
+          )}
         </div>
       </div>
 
