@@ -51,7 +51,7 @@ export default function CheckIn() {
     brand: '',
     model: '',
     color: '',
-    type: 'HATCH' as 'HATCH' | 'SEDAN' | 'SUV' | 'CAMINHONETE'
+    type: 'HATCH' as 'HATCH' | 'SEDAN' | 'SUV' | 'CAMINHONETE' | 'MOTO_PEQUENA' | 'MOTO_GRANDE'
   });
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -543,6 +543,8 @@ export default function CheckIn() {
                         <option value="SEDAN">Sedan</option>
                         <option value="SUV">SUV</option>
                         <option value="CAMINHONETE">Caminhonete</option>
+                        <option value="MOTO_PEQUENA">Moto Pequena</option>
+                        <option value="MOTO_GRANDE">Moto Grande</option>
                       </select>
                     </div>
                   </div>
@@ -569,6 +571,8 @@ export default function CheckIn() {
                         <option value="SEDAN">Sedan</option>
                         <option value="SUV">SUV</option>
                         <option value="CAMINHONETE">Caminhonete</option>
+                        <option value="MOTO_PEQUENA">Moto Pequena</option>
+                        <option value="MOTO_GRANDE">Moto Grande</option>
                       </select>
                     </div>
                   </div>
