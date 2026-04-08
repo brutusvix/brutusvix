@@ -37,7 +37,7 @@ export default function Dashboard() {
   const { appointments, transactions, units } = useData();
   const { user } = useAuth();
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
-  const [timeFilter, setTimeFilter] = useState<'day' | 'week' | 'month'>('day');
+  const [timeFilter, setTimeFilter] = useState<'day' | 'yesterday' | 'dayBeforeYesterday' | 'week' | 'month'>('day');
 
   const filteredAppointments = appointments.filter(a => {
     if (user?.role === 'LAVADOR') return a.unit_id === user.unit_id;
@@ -53,7 +53,13 @@ export default function Dashboard() {
   
   const getStartDate = () => {
     const d = new Date();
-    if (timeFilter === 'week') {
+    if (timeFilter === 'yesterday') {
+      d.setDate(d.getDate() - 1);
+      return d.toLocaleDateString('en-CA');
+    } else if (timeFilter === 'dayBeforeYesterday') {
+      d.setDate(d.getDate() - 2);
+      return d.toLocaleDateString('en-CA');
+    } else if (timeFilter === 'week') {
       d.setDate(d.getDate() - 7);
     } else if (timeFilter === 'month') {
       d.setDate(d.getDate() - 30);
@@ -65,6 +71,16 @@ export default function Dashboard() {
 
   const isDateInRange = (dateStr: string) => {
     if (timeFilter === 'day') return dateStr.startsWith(today);
+    if (timeFilter === 'yesterday') {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      return dateStr.startsWith(yesterday.toLocaleDateString('en-CA'));
+    }
+    if (timeFilter === 'dayBeforeYesterday') {
+      const dayBeforeYesterday = new Date();
+      dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
+      return dateStr.startsWith(dayBeforeYesterday.toLocaleDateString('en-CA'));
+    }
     return dateStr >= startDate && dateStr <= today;
   };
 
@@ -130,7 +146,7 @@ export default function Dashboard() {
       }, 0) / finishedAppointments.length / 60000)
     : 0;
 
-  const periodLabel = timeFilter === 'day' ? 'Hoje' : timeFilter === 'week' ? '7 Dias' : '30 Dias';
+  const periodLabel = timeFilter === 'day' ? 'Hoje' : timeFilter === 'yesterday' ? 'Ontem' : timeFilter === 'dayBeforeYesterday' ? 'Anteontem' : timeFilter === 'week' ? '7 Dias' : '30 Dias';
 
   const donoCards = [
     { label: `Veículos (${periodLabel})`, value: vehiclesPeriod, icon: Car },
@@ -163,9 +179,11 @@ export default function Dashboard() {
             <select
               className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-lg py-2 pl-9 pr-8 text-sm text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-700 appearance-none transition-colors hover:bg-zinc-800/50"
               value={timeFilter}
-              onChange={(e) => setTimeFilter(e.target.value as 'day' | 'week' | 'month')}
+              onChange={(e) => setTimeFilter(e.target.value as 'day' | 'yesterday' | 'dayBeforeYesterday' | 'week' | 'month')}
             >
               <option value="day">Hoje</option>
+              <option value="yesterday">Ontem</option>
+              <option value="dayBeforeYesterday">Anteontem</option>
               <option value="week">Últimos 7 dias</option>
               <option value="month">Últimos 30 dias</option>
             </select>
