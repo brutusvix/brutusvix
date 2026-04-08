@@ -22,7 +22,7 @@ const Clients = () => {
                          client.phone.includes(searchTerm);
     const matchesUnit = user?.role === 'LAVADOR' 
       ? client.unit_id === user.unit_id 
-      : (selectedUnit === 'all' || client.unit_id === parseInt(selectedUnit));
+      : (selectedUnit === 'all' || client.unit_id === selectedUnit);
     const matchesReward = showOnlyRewards ? (client.points || 0) >= 10 : true;
     
     return matchesSearch && matchesUnit && matchesReward;
@@ -60,7 +60,7 @@ const Clients = () => {
     }
 
     try {
-      const unitId = user?.role === 'LAVADOR' ? user.unit_id : (selectedUnit === 'all' ? units[0]?.id : parseInt(selectedUnit));
+      const unitId = user?.role === 'LAVADOR' ? user.unit_id : (selectedUnit === 'all' ? units[0]?.id : selectedUnit);
       
       await addClient({
         name: newClientName.trim(),

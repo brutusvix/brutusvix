@@ -7,13 +7,27 @@ import autoTable from 'jspdf-autotable';
 export default function ProductionPayroll() {
   const { production, users, updateProductionStatus, units, addTransaction, transactions } = useData();
   const [selectedUnit, setSelectedUnit] = useState<string | 'ALL'>('ALL');
-  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'custom'>('today');
+  const [period, setPeriod] = useState<'today' | 'yesterday' | 'dayBeforeYesterday' | 'week' | 'month' | 'custom'>('today');
   const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
 
   const filterDate = (dateString: string) => {
     const now = new Date();
     const todayStr = now.toLocaleDateString('en-CA');
+    
     if (period === 'today')  return dateString === todayStr;
+    
+    if (period === 'yesterday') {
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      return dateString === yesterday.toLocaleDateString('en-CA');
+    }
+    
+    if (period === 'dayBeforeYesterday') {
+      const dayBeforeYesterday = new Date(now);
+      dayBeforeYesterday.setDate(now.getDate() - 2);
+      return dateString === dayBeforeYesterday.toLocaleDateString('en-CA');
+    }
+    
     if (period === 'week') {
       const weekAgo = new Date();
       weekAgo.setDate(now.getDate() - 7);
@@ -105,7 +119,7 @@ export default function ProductionPayroll() {
     const doc = new jsPDF();
     doc.text('Relatório de Produção e Pagamento', 14, 15);
     doc.setFontSize(10);
-    const periodLabel = period === 'today' ? 'Hoje' : period === 'week' ? 'Semana' : period === 'month' ? 'Mês' : selectedDate;
+    const periodLabel = period === 'today' ? 'Hoje' : period === 'yesterday' ? 'Ontem' : period === 'dayBeforeYesterday' ? 'Anteontem' : period === 'week' ? 'Semana' : period === 'month' ? 'Mês' : selectedDate;
     doc.text(`Período: ${periodLabel}`, 14, 22);
     doc.text(`Faturamento: R$ ${(totalFaturado ?? 0).toFixed(2)}`, 14, 28);
     doc.text(`Gasto Funcionários: R$ ${(totalGastoFuncionarios ?? 0).toFixed(2)}`, 14, 34);
@@ -129,10 +143,10 @@ export default function ProductionPayroll() {
         <h1 className="text-2xl font-bold text-white">Produção e Pagamento</h1>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-1">
-            {(['today', 'week', 'month', 'custom'] as const).map(p => (
+            {(['today', 'yesterday', 'dayBeforeYesterday', 'week', 'month', 'custom'] as const).map(p => (
               <button key={p} onClick={() => setPeriod(p)}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === p ? 'bg-zinc-800 text-zinc-100 border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                {p === 'today' ? 'Hoje' : p === 'week' ? 'Semana' : p === 'month' ? 'Mês' : 'Data'}
+                {p === 'today' ? 'Hoje' : p === 'yesterday' ? 'Ontem' : p === 'dayBeforeYesterday' ? 'Anteontem' : p === 'week' ? 'Semana' : p === 'month' ? 'Mês' : 'Data'}
               </button>
             ))}
           </div>

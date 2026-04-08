@@ -41,12 +41,12 @@ export default function Dashboard() {
 
   const filteredAppointments = appointments.filter(a => {
     if (user?.role === 'LAVADOR') return a.unit_id === user.unit_id;
-    return selectedUnit === 'all' || a.unit_id === parseInt(selectedUnit);
+    return selectedUnit === 'all' || a.unit_id === selectedUnit;
   });
 
   const filteredTransactions = transactions.filter(t => {
     if (user?.role === 'LAVADOR') return t.unit_id === user.unit_id;
-    return selectedUnit === 'all' || t.unit_id === parseInt(selectedUnit);
+    return selectedUnit === 'all' || t.unit_id === selectedUnit;
   });
 
   const today = new Date().toLocaleDateString('en-CA');
@@ -114,7 +114,7 @@ export default function Dashboard() {
 
   // Calculate services per unit data based on period
   const servicesByUnitData = units.map(u => {
-    if (selectedUnit !== 'all' && parseInt(selectedUnit) !== u.id) {
+    if (selectedUnit !== 'all' && selectedUnit !== u.id) {
       return { name: u.name, valor: 0 };
     }
     const count = appointmentsPeriod.filter(a => a.unit_id === u.id).length;

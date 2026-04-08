@@ -10,7 +10,7 @@ const Finance = () => {
   const { transactions, appointments, users, units, services, extras, clients, production, loading, addTransaction, updateTransaction, deleteTransaction } = useData();
   const { user } = useAuth();
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
-  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'last30' | 'custom'>('month');
+  const [period, setPeriod] = useState<'today' | 'yesterday' | 'dayBeforeYesterday' | 'week' | 'month' | 'last30' | 'custom'>('month');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [showAddModal, setShowAddModal]       = useState(false);
@@ -30,6 +30,18 @@ const Finance = () => {
     
     if (period === 'today') {
       return d.toDateString() === now.toDateString();
+    }
+    
+    if (period === 'yesterday') {
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      return d.toDateString() === yesterday.toDateString();
+    }
+    
+    if (period === 'dayBeforeYesterday') {
+      const dayBeforeYesterday = new Date(now);
+      dayBeforeYesterday.setDate(now.getDate() - 2);
+      return d.toDateString() === dayBeforeYesterday.toDateString();
     }
     
     if (period === 'week') {
@@ -175,6 +187,8 @@ const Finance = () => {
     doc.setFontSize(10);
     let periodText = '';
     if (period === 'today') periodText = 'Hoje';
+    else if (period === 'yesterday') periodText = 'Ontem';
+    else if (period === 'dayBeforeYesterday') periodText = 'Anteontem';
     else if (period === 'week') periodText = 'Últimos 7 dias';
     else if (period === 'last30') periodText = 'Últimos 30 dias';
     else if (period === 'month') periodText = 'Mês atual';
@@ -250,10 +264,10 @@ const Finance = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-xl p-1">
-            {(['today','week','last30','month'] as const).map(p => (
+            {(['today','yesterday','dayBeforeYesterday','week','last30','month'] as const).map(p => (
               <button key={p} onClick={() => setPeriod(p)}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === p ? 'bg-zinc-800/50 text-zinc-100 border border-zinc-800/50' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                {p === 'today' ? 'Hoje' : p === 'week' ? '7 Dias' : p === 'last30' ? '30 Dias' : 'Mês Atual'}
+                {p === 'today' ? 'Hoje' : p === 'yesterday' ? 'Ontem' : p === 'dayBeforeYesterday' ? 'Anteontem' : p === 'week' ? '7 Dias' : p === 'last30' ? '30 Dias' : 'Mês Atual'}
               </button>
             ))}
             <button 

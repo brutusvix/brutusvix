@@ -14,7 +14,7 @@ const Loyalty = () => {
                          client.phone.includes(searchTerm);
     const matchesUnit = user?.role === 'LAVADOR' 
       ? client.unit_id === user.unit_id 
-      : (selectedUnit === 'all' || client.unit_id === parseInt(selectedUnit));
+      : (selectedUnit === 'all' || client.unit_id === selectedUnit);
     
     return matchesSearch && matchesUnit;
   }).sort((a, b) => (b.points || 0) - (a.points || 0));
