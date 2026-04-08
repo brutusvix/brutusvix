@@ -16,7 +16,8 @@ import MyProduction from './pages/MyProduction';
 import ProductionPayroll from './pages/ProductionPayroll';
 import PublicBooking from './pages/PublicBooking';
 import BulkMessages from './pages/BulkMessages';
-import { DataProvider } from './DataContext';
+import LoadingOverlay from './components/LoadingOverlay';
+import { DataProvider, useData } from './DataContext';
 import { User } from './types';
 
 interface AuthContextType {
@@ -35,7 +36,16 @@ export const useAuth = () => {
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
-  return user ? <>{children}</> : <Navigate to="/login" />;
+  const { loading } = useData();
+  
+  if (!user) return <Navigate to="/login" />;
+  
+  return (
+    <>
+      {loading && <LoadingOverlay message="Carregando dados essenciais..." />}
+      {children}
+    </>
+  );
 };
 
 export default function App() {

@@ -203,34 +203,56 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
+      // Carregar dados essenciais primeiro (rápido)
       const [
         { data: unitsData },
         { data: usersData },
-        { data: clientsData },
-        { data: vehiclesData },
         { data: servicesData },
         { data: extrasData },
+      ] = await Promise.all([
+        supabase.from('units').select('*').is('deleted_at', null).order('name'),
+        supabase.from('users').select('*').is('deleted_at', null).order('name'),
+        supabase.from('services').select('*').is('deleted_at', null).eq('active', true).order('name'),
+        supabase.from('extras').select('*').eq('active', true).order('name'),
+      ]);
+
+      if (unitsData)    setUnits(unitsData.map(mapUnit));
+      if (usersData)    setUsers(usersData.map(mapUser));
+      if (servicesData) setServices(servicesData.map(mapService));
+      if (extrasData)   setExtras(extrasData.map(mapExtra));
+
+      // Liberar loading para mostrar interface
+      setLoading(false);
+
+      // Carregar dados secundários em background (mais lento)
+      const [
+        { data: clientsData },
+        { data: vehiclesData },
         { data: appointmentsData },
         { data: transactionsData },
         { data: productionData },
       ] = await Promise.all([
-        supabase.from('units').select('*').is('deleted_at', null).order('name'),
-        supabase.from('users').select('*').is('deleted_at', null).order('name'),
-        supabase.from('clients').select('*').order('name'),
-        supabase.from('vehicles').select('*').order('plate'),
-        supabase.from('services').select('*').is('deleted_at', null).eq('active', true).order('name'),
-        supabase.from('extras').select('*').eq('active', true).order('name'),
-        supabase.from('appointments').select('*').order('start_time', { ascending: false }),
-        supabase.from('transactions').select('*').order('date', { ascending: false }),
-        supabase.from('production_records').select('*, users(name)').order('date', { ascending: false }),
+        supabase.from('clients').select('*').order('name').limit(500),
+        supabase.from('vehicles').select('*').order('plate').limit(500),
+        // Últimos 90 dias de agendamentos
+        supabase.from('appointments').select('*')
+          .gte('start_time', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+          .order('start_time', { ascending: false })
+          .limit(1000),
+        // Últimos 90 dias de transações
+        supabase.from('transactions').select('*')
+          .gte('date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+          .order('date', { ascending: false })
+          .limit(1000),
+        // Últimos 90 dias de produção
+        supabase.from('production_records').select('*, users(name)')
+          .gte('date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+          .order('date', { ascending: false })
+          .limit(1000),
       ]);
 
-      if (unitsData)        setUnits(unitsData.map(mapUnit));
-      if (usersData)        setUsers(usersData.map(mapUser));
       if (clientsData)      setClients(clientsData.map(mapClient));
       if (vehiclesData)     setVehicles(vehiclesData.map(mapVehicle));
-      if (servicesData)     setServices(servicesData.map(mapService));
-      if (extrasData)       setExtras(extrasData.map(mapExtra));
       if (appointmentsData) setAppointments(appointmentsData.map(mapAppointment));
       if (transactionsData) setTransactions(transactionsData.map(mapTransaction));
       if (productionData)   setProduction(
@@ -238,7 +260,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
-    } finally {
       setLoading(false);
     }
   }, []);
