@@ -201,30 +201,84 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Carrega todos os dados do Supabase ──────────────────────────────────────
   const fetchAll = useCallback(async () => {
-    setLoading(true);
+    const startTime = performance.now();
+    
+    // Tentar carregar do cache primeiro (instantâneo)
+    const cachedData = sessionStorage.getItem('app_cache');
+    if (cachedData) {
+      try {
+        const parsed = JSON.parse(cachedData);
+        const cacheAge = Date.now() - parsed.timestamp;
+        
+        // Se cache tem menos de 5 minutos, usar imediatamente
+        if (cacheAge < 5 * 60 * 1000) {
+          console.log('⚡ Carregando do cache (instantâneo)');
+          setUnits(parsed.units || []);
+          setUsers(parsed.users || []);
+          setServices(parsed.services || []);
+          setExtras(parsed.extras || []);
+          setClients(parsed.clients || []);
+          setVehicles(parsed.vehicles || []);
+          setAppointments(parsed.appointments || []);
+          setTransactions(parsed.transactions || []);
+          setProduction(parsed.production || []);
+          setLoading(false);
+          
+          // Atualizar em background
+          fetchFreshData(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('Cache inválido, carregando do servidor');
+      }
+    }
+    
+    // Se não tem cache, carregar normalmente
+    await fetchFreshData(true);
+    
+    const endTime = performance.now();
+    console.log(`⚡ Dados carregados em ${(endTime - startTime).toFixed(0)}ms`);
+  }, []);
+
+  const fetchFreshData = async (showLoading: boolean) => {
+    if (showLoading) setLoading(true);
+    
     try {
-      // Carregar dados essenciais primeiro (rápido)
+      // Carregar dados essenciais primeiro (super rápido)
+      const essentialStart = performance.now();
       const [
         { data: unitsData },
         { data: usersData },
         { data: servicesData },
         { data: extrasData },
       ] = await Promise.all([
-        supabase.from('units').select('*').is('deleted_at', null).order('name'),
-        supabase.from('users').select('*').is('deleted_at', null).order('name'),
-        supabase.from('services').select('*').is('deleted_at', null).eq('active', true).order('name'),
-        supabase.from('extras').select('*').eq('active', true).order('name'),
+        supabase.from('units').select('id,name,address,phone,is_open,operating_hours').is('deleted_at', null).order('name'),
+        supabase.from('users').select('id,auth_id,name,email,phone,role,unit_id,payment_type,daily_wage,base_commission_percent,lunch_value,transport_value,fixed_service_commissions').is('deleted_at', null).order('name'),
+        supabase.from('services').select('id,name,unit_id,price_hatch,price_sedan,price_suv,price_pickup,duration_minutes,active,category').is('deleted_at', null).eq('active', true).order('name'),
+        supabase.from('extras').select('id,name,price,commission_value').eq('active', true).order('name'),
       ]);
 
-      if (unitsData)    setUnits(unitsData.map(mapUnit));
-      if (usersData)    setUsers(usersData.map(mapUser));
-      if (servicesData) setServices(servicesData.map(mapService));
-      if (extrasData)   setExtras(extrasData.map(mapExtra));
+      const mappedUnits = unitsData?.map(mapUnit) || [];
+      const mappedUsers = usersData?.map(mapUser) || [];
+      const mappedServices = servicesData?.map(mapService) || [];
+      const mappedExtras = extrasData?.map(mapExtra) || [];
+
+      setUnits(mappedUnits);
+      setUsers(mappedUsers);
+      setServices(mappedServices);
+      setExtras(mappedExtras);
+
+      const essentialEnd = performance.now();
+      console.log(`⚡ Dados essenciais: ${(essentialEnd - essentialStart).toFixed(0)}ms`);
 
       // Liberar loading para mostrar interface
-      setLoading(false);
+      if (showLoading) setLoading(false);
 
-      // Carregar dados secundários em background (mais lento)
+      // Carregar dados secundários em background (paralelo máximo)
+      const secondaryStart = performance.now();
+      const now = new Date();
+      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      
       const [
         { data: clientsData },
         { data: vehiclesData },
@@ -232,39 +286,73 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { data: transactionsData },
         { data: productionData },
       ] = await Promise.all([
-        supabase.from('clients').select('*').order('name').limit(500),
-        supabase.from('vehicles').select('*').order('plate').limit(500),
-        // Últimos 90 dias de agendamentos
-        supabase.from('appointments').select('*')
-          .gte('start_time', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+        supabase.from('clients').select('id,name,phone,unit_id,points,total_spent').order('name').limit(500),
+        supabase.from('vehicles').select('id,client_id,model,plate').order('plate').limit(500),
+        supabase.from('appointments').select('id,client_id,service_id,unit_id,washer_id,vehicle_type,plate,vehicle_model,start_time,end_time,status,total_price,selected_extras,client_name,photo_url,ai_data')
+          .gte('start_time', ninetyDaysAgo)
           .order('start_time', { ascending: false })
           .limit(1000),
-        // Últimos 90 dias de transações
-        supabase.from('transactions').select('*')
-          .gte('date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+        supabase.from('transactions').select('id,unit_id,type,amount,category,description,date,payment_method')
+          .gte('date', ninetyDaysAgo)
           .order('date', { ascending: false })
           .limit(1000),
-        // Últimos 90 dias de produção
-        supabase.from('production_records').select('*, users(name)')
-          .gte('date', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+        supabase.from('production_records').select('id,washer_id,unit_id,appointment_id,service_name,service_value,extras_data,commission_service,commission_extras,client_name,vehicle_plate,date,hour,status,extras_service_names,users(name)')
+          .gte('date', ninetyDaysAgo)
           .order('date', { ascending: false })
           .limit(1000),
       ]);
 
-      if (clientsData)      setClients(clientsData.map(mapClient));
-      if (vehiclesData)     setVehicles(vehiclesData.map(mapVehicle));
-      if (appointmentsData) setAppointments(appointmentsData.map(mapAppointment));
-      if (transactionsData) setTransactions(transactionsData.map(mapTransaction));
-      if (productionData)   setProduction(
-        productionData.map(row => mapProduction({ ...row, washer_name: row.users?.name }))
-      );
+      const mappedClients = clientsData?.map(mapClient) || [];
+      const mappedVehicles = vehiclesData?.map(mapVehicle) || [];
+      const mappedAppointments = appointmentsData?.map(mapAppointment) || [];
+      const mappedTransactions = transactionsData?.map(mapTransaction) || [];
+      const mappedProduction = productionData?.map(row => mapProduction({ ...row, washer_name: row.users?.name })) || [];
+
+      setClients(mappedClients);
+      setVehicles(mappedVehicles);
+      setAppointments(mappedAppointments);
+      setTransactions(mappedTransactions);
+      setProduction(mappedProduction);
+
+      const secondaryEnd = performance.now();
+      console.log(`⚡ Dados secundários: ${(secondaryEnd - secondaryStart).toFixed(0)}ms`);
+
+      // Salvar no cache
+      const cacheData = {
+        timestamp: Date.now(),
+        units: mappedUnits,
+        users: mappedUsers,
+        services: mappedServices,
+        extras: mappedExtras,
+        clients: mappedClients,
+        vehicles: mappedVehicles,
+        appointments: mappedAppointments,
+        transactions: mappedTransactions,
+        production: mappedProduction,
+      };
+      
+      try {
+        sessionStorage.setItem('app_cache', JSON.stringify(cacheData));
+        console.log('💾 Cache atualizado');
+      } catch (e) {
+        console.warn('Cache cheio, limpando...');
+        sessionStorage.clear();
+      }
+      
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // Limpar cache ao desmontar (logout)
+  useEffect(() => {
+    return () => {
+      // Não limpar cache ao desmontar, apenas em logout explícito
+    };
+  }, []);
 
   // ── Realtime: atualiza dados ao vivo ────────────────────────────────────────
   useEffect(() => {

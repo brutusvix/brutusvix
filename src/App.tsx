@@ -63,6 +63,7 @@ export default function App() {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionStorage.removeItem('app_cache'); // Limpar cache ao fazer logout
     setUser(null);
   };
 
