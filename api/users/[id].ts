@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,DELETE,PATCH,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -44,7 +44,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .single();
 
   if (userError || !userData || userData.role !== 'DONO') {
-    return res.status(403).json({ error: 'Acesso negado. Apenas DONO pode excluir usuários.' });
+    return res.status(403).json({ error: 'Acesso negado. Apenas DONO pode modificar usuários.' });
+  }
+
+  if (req.method === 'PATCH') {
+    try {
+      const updates = req.body;
+
+      // Atualizar no banco de dados
+      const { data, error: updateError } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        return res.status(500).json({ error: 'Erro ao atualizar usuário', details: updateError.message });
+      }
+
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error('Erro ao atualizar usuário:', error);
+      return res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
+    }
   }
 
   if (req.method === 'DELETE') {
