@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// Tentar ambos os nomes de variáveis de ambiente (com e sem VITE_)
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
@@ -13,6 +14,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  // Verificar se as variáveis de ambiente estão configuradas
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('Variáveis de ambiente não configuradas:', { 
+      hasUrl: !!supabaseUrl, 
+      hasKey: !!supabaseServiceKey 
+    });
+    return res.status(500).json({ 
+      error: 'Configuração do servidor incompleta',
+      details: 'Variáveis de ambiente SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não encontradas'
+    });
   }
 
   const { id } = req.query;
@@ -28,27 +41,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const token = authHeader.substring(7);
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // Verificar o usuário autenticado
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Token inválido' });
-  }
+    // Verificar o usuário autenticado
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Token inválido', details: authError?.message });
+    }
 
-  // Buscar role do usuário
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('role')
-    .eq('auth_id', user.id)
-    .single();
+    // Buscar role do usuário
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('auth_id', user.id)
+      .single();
 
-  if (userError || !userData || userData.role !== 'DONO') {
-    return res.status(403).json({ error: 'Acesso negado. Apenas DONO pode modificar usuários.' });
-  }
+    if (userError || !userData || userData.role !== 'DONO') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas DONO pode modificar usuários.' });
+    }
 
-  if (req.method === 'PATCH') {
-    try {
+    if (req.method === 'PATCH') {
       const updates = req.body;
 
       // Atualizar no banco de dados
@@ -60,18 +74,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .single();
 
       if (updateError) {
+        console.error('Erro ao atualizar usuário:', updateError);
         return res.status(500).json({ error: 'Erro ao atualizar usuário', details: updateError.message });
       }
 
       return res.status(200).json(data);
-    } catch (error: any) {
-      console.error('Erro ao atualizar usuário:', error);
-      return res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
     }
-  }
 
-  if (req.method === 'DELETE') {
-    try {
+    if (req.method === 'DELETE') {
       // Buscar o auth_id do usuário a ser deletado
       const { data: userToDelete, error: fetchError } = await supabase
         .from('users')
@@ -90,6 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('id', id);
 
       if (deleteError) {
+        console.error('Erro ao deletar usuário:', deleteError);
         return res.status(500).json({ error: 'Erro ao deletar usuário do banco', details: deleteError.message });
       }
 
@@ -103,11 +114,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return res.status(200).json({ message: 'Usuário deletado com sucesso' });
-    } catch (error: any) {
-      console.error('Erro ao deletar usuário:', error);
-      return res.status(500).json({ error: 'Erro interno do servidor', details: error.message });
     }
-  }
 
-  return res.status(405).json({ error: 'Método não permitido' });
+    return res.status(405).json({ error: 'Método não permitido' });
+  } catch (error: any) {
+    console.error('Erro na função serverless:', error);
+    return res.status(500).json({ 
+      error: 'Erro interno do servidor', 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
 }
