@@ -39,6 +39,7 @@ const Staff = () => {
     valorPassagem:  0,
     tipoPagamento:  'comissao' as 'diaria' | 'comissao' | 'misto',
     valorDiaria:    0,
+    lavadorTipo:    '01' as '01' | '02',
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -84,6 +85,7 @@ const Staff = () => {
       valorPassagem: staff.valorPassagem || 0,
       tipoPagamento: staff.tipoPagamento || 'comissao',
       valorDiaria:   staff.valorDiaria   || 0,
+      lavadorTipo:   staff.lavadorTipo   || '01',
     });
     setEditingCommissions(buildInitialCommissions(staff.comissoesServico || {}));
     setIsModalOpen(true);
@@ -293,6 +295,26 @@ const Staff = () => {
                   </select>
                 </div>
               </div>
+
+              {/* Tipo de Lavador (só aparece para LAVADOR) */}
+              {formData.role === 'LAVADOR' && (
+                <div>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1.5">Tipo de Lavador</label>
+                  <select
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
+                    value={formData.lavadorTipo}
+                    onChange={(e) => setFormData({ ...formData, lavadorTipo: e.target.value as '01' | '02' })}
+                  >
+                    <option value="01">Lavador 01 - Meta: 12 carros (R$ 10/carro)</option>
+                    <option value="02">Lavador 02 - Meta: 15 carros (R$ 7/carro)</option>
+                  </select>
+                  <p className="text-xs text-zinc-500 mt-1.5">
+                    {formData.lavadorTipo === '01' 
+                      ? 'Diária R$ 100. Se bater 12 carros: R$ 10/carro. Marmita paga pelo dono se bater meta.'
+                      : 'Diária R$ 100. Se bater 15 carros: R$ 7/carro. Marmita paga pelo dono se bater meta.'}
+                  </p>
+                </div>
+              )}
 
               {/* Senha (só em novo funcionário) */}
               {!isEditing && (

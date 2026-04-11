@@ -16,6 +16,7 @@ export interface User {
   valorPassagem?: number;
   phone?: string;
   comissoesServico?: { [key: string]: number };
+  lavadorTipo?: '01' | '02'; // Tipo de lavador: 01 (meta 12 carros, R$10/carro) ou 02 (meta 15 carros, R$7/carro)
 }
 
 export interface ProductionRecord {

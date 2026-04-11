@@ -61,29 +61,30 @@ export default function ProductionPayroll() {
     const totalExtrasCommission = empProduction.reduce((acc, p) => acc + (p.comissaoExtras || 0), 0);
     const totalGeral           = totalServicos + totalExtrasRevenue;
 
-    // Contar lavadores da mesma unidade para divisão de comissão
-    const lavadoresDaUnidade = users.filter(u => 
-      u.role === 'LAVADOR' && u.unit_id === emp.unit_id
-    ).length;
-    const divisorComissao = lavadoresDaUnidade > 0 ? lavadoresDaUnidade : 1;
+    const carrosLavados = empProduction.length;
+    
+    // Nova lógica de cálculo baseada no tipo de lavador
+    const lavadorTipo = emp.lavadorTipo || '01';
+    const meta = lavadorTipo === '01' ? 12 : 15;
+    const valorPorCarro = lavadorTipo === '01' ? 10 : 7;
+    const bateuMeta = carrosLavados >= meta;
+    
+    // Cálculo da diária
+    let valorDiaria = 100; // Diária base
+    if (bateuMeta) {
+      valorDiaria = carrosLavados * valorPorCarro;
+    }
 
-    // Usa commission_service já calculado no banco (pelo trigger)
-    // como fallback calcula pelo percentual
+    // Comissão (mantém lógica existente, mas sem divisão)
     const comissaoServicos = empProduction.reduce((acc, p) => {
-      // Se o banco já calculou a comissão, usa ela
       const dbComm = (p as any).commission_service ?? 0;
       if (dbComm > 0) return acc + dbComm;
-      // Fallback: calcula pelo perfil do lavador
       const fixed = emp.comissoesServico?.[p.servico];
       if (fixed !== undefined && fixed > 0) return acc + fixed;
       return acc + (p.valorServico * (emp.comissaoPercentualServico || 0));
-    }, 0) / divisorComissao;
+    }, 0);
     
-    const comissaoTotal = (comissaoServicos + totalExtrasCommission) / divisorComissao;
-
-    // Cálculo de diária com teto de R$ 110,00 (11 carros × R$ 10,00)
-    const carrosLavados = empProduction.length;
-    const valorDiaria = Math.min(carrosLavados * 10, 110);
+    const comissaoTotal = comissaoServicos + totalExtrasCommission;
 
     const appliesFixedCosts = selectedUnit === 'ALL' || emp.unit_id === selectedUnit;
     const uniqueDaysWorked  = new Set(empProduction.map(p => p.data)).size;
@@ -93,8 +94,8 @@ export default function ProductionPayroll() {
       ? ((emp.valorAlmoco || 0) + (emp.valorPassagem || 0)) * daysToApply
       : 0;
 
-    // Desconto de marmita (R$ 15,00) controlado por checkbox
-    const descontoMarmita = marmitaDescontos[emp.id] ? 15 : 0;
+    // Desconto de marmita: só se NÃO bateu meta E checkbox marcado
+    const descontoMarmita = (!bateuMeta && marmitaDescontos[emp.id]) ? 15 : 0;
 
     const valorFinal =
       (emp.tipoPagamento === 'diaria'   ? valorDiaria : 0) +
@@ -103,7 +104,21 @@ export default function ProductionPayroll() {
       descontos -
       descontoMarmita;
 
-    return { ...emp, carrosLavados: empProduction.length, totalServicos, totalExtras: totalExtrasRevenue, totalGeral, comissaoTotal, valorDiariaAplicada: valorDiaria, valorFinal, descontos, descontoMarmita, divisorComissao };
+    return { 
+      ...emp, 
+      carrosLavados, 
+      totalServicos, 
+      totalExtras: totalExtrasRevenue, 
+      totalGeral, 
+      comissaoTotal, 
+      valorDiariaAplicada: valorDiaria, 
+      valorFinal, 
+      descontos, 
+      descontoMarmita,
+      meta,
+      bateuMeta,
+      lavadorTipo
+    };
   });
 
   const totalFaturado          = filteredProduction.reduce((acc, p) => acc + p.valorServico + p.extras.reduce((s, e) => s + e.valor, 0), 0);
@@ -221,10 +236,24 @@ export default function ProductionPayroll() {
                 <p className="text-xs text-zinc-500 mt-0.5">
                   {units.find(u => u.id === emp.unit_id)?.name || 'Sem unidade'}
                 </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-blue-500/10 text-blue-500">
+                    Lavador {emp.lavadorTipo || '01'}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                    emp.bateuMeta 
+                      ? 'bg-emerald-500/10 text-emerald-500' 
+                      : 'bg-orange-500/10 text-orange-500'
+                  }`}>
+                    {emp.bateuMeta ? '✓ Meta Batida' : `Meta: ${emp.meta} carros`}
+                  </span>
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-xs text-zinc-500 uppercase">Carros</div>
-                <div className="text-2xl font-bold text-brand-primary">{emp.carrosLavados}</div>
+                <div className={`text-2xl font-bold ${emp.bateuMeta ? 'text-emerald-500' : 'text-orange-400'}`}>
+                  {emp.carrosLavados}
+                </div>
               </div>
             </div>
 
@@ -239,17 +268,14 @@ export default function ProductionPayroll() {
               </div>
 
               <div className="flex justify-between items-center">
-                <span className="text-sm text-zinc-400">
-                  Comissão
-                  {emp.divisorComissao > 1 && (
-                    <span className="text-xs text-zinc-600 ml-1">÷{emp.divisorComissao}</span>
-                  )}
-                </span>
+                <span className="text-sm text-zinc-400">Comissão</span>
                 <span className="text-sm font-semibold text-blue-400">R$ {(emp.comissaoTotal ?? 0).toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between items-center">
-                <span className="text-sm text-zinc-400">Diária</span>
+                <span className="text-sm text-zinc-400">
+                  Diária {emp.bateuMeta && <span className="text-xs text-emerald-500">(R$ {emp.lavadorTipo === '01' ? '10' : '7'}/carro)</span>}
+                </span>
                 <span className="text-sm font-semibold text-purple-400">
                   R$ {(emp.tipoPagamento !== 'comissao' ? (emp.valorDiariaAplicada ?? 0) : 0).toFixed(2)}
                 </span>
@@ -260,24 +286,35 @@ export default function ProductionPayroll() {
                 <span className="text-sm font-semibold text-red-400">- R$ {(emp.descontos ?? 0).toFixed(2)}</span>
               </div>
 
-              {/* Checkbox Marmita */}
-              <div className="flex justify-between items-center bg-zinc-800/30 rounded-lg p-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={marmitaDescontos[emp.id] || false}
-                    onChange={(e) => setMarmitaDescontos({
-                      ...marmitaDescontos,
-                      [emp.id]: e.target.checked
-                    })}
-                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-brand-primary focus:ring-brand-primary/50 focus:ring-2"
-                  />
-                  <span className="text-sm text-zinc-400">Descontar Marmita</span>
-                </label>
-                <span className="text-sm font-semibold text-orange-400">
-                  {marmitaDescontos[emp.id] ? '- R$ 15,00' : 'R$ 0,00'}
-                </span>
-              </div>
+              {/* Checkbox Marmita - só aparece se NÃO bateu meta */}
+              {!emp.bateuMeta && (
+                <div className="flex justify-between items-center bg-zinc-800/30 rounded-lg p-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={marmitaDescontos[emp.id] || false}
+                      onChange={(e) => setMarmitaDescontos({
+                        ...marmitaDescontos,
+                        [emp.id]: e.target.checked
+                      })}
+                      className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-brand-primary focus:ring-brand-primary/50 focus:ring-2"
+                    />
+                    <span className="text-sm text-zinc-400">Descontar Marmita</span>
+                  </label>
+                  <span className="text-sm font-semibold text-orange-400">
+                    {marmitaDescontos[emp.id] ? '- R$ 15,00' : 'R$ 0,00'}
+                  </span>
+                </div>
+              )}
+
+              {/* Mensagem se bateu meta */}
+              {emp.bateuMeta && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+                  <p className="text-xs text-emerald-500 text-center">
+                    ✓ Marmita paga pelo dono (meta batida)
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Divisor */}
