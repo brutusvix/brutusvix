@@ -171,6 +171,11 @@ const Staff = () => {
                   }`}>
                     {staff.role === 'DONO' ? 'Dono' : 'Lavador'}
                   </span>
+                  {staff.role === 'LAVADOR' && staff.lavadorTipo && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-cyan-500/10 text-cyan-500">
+                      Tipo {staff.lavadorTipo}
+                    </span>
+                  )}
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
                     staff.auth_id ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
                   }`}>
