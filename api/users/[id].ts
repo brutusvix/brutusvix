@@ -65,10 +65,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'PATCH') {
       const updates = req.body;
 
-      // Remover campos undefined ou que possam causar erro se a coluna não existir
+      // Mapear nomes de campos do frontend (camelCase) para o banco (snake_case)
+      const fieldMapping: { [key: string]: string } = {
+        'comissoesServico': 'fixed_service_commissions',
+        'lavadorTipo': 'lavador_tipo',
+        'valorAlmoco': 'lunch_value',
+        'valorPassagem': 'transport_value',
+        'tipoPagamento': 'payment_type',
+        'valorDiaria': 'daily_wage',
+        'comissaoPercentualServico': 'base_commission_percent',
+        'descontarAlmoco': 'descontar_almoco',
+        'descontarPassagem': 'descontar_passagem',
+        'unitId': 'unit_id',
+        'authId': 'auth_id',
+      };
+
+      // Converter campos para snake_case e remover undefined
       const safeUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
         if (value !== undefined) {
-          acc[key] = value;
+          const dbKey = fieldMapping[key] || key;
+          acc[dbKey] = value;
         }
         return acc;
       }, {} as any);

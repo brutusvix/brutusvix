@@ -107,17 +107,25 @@ const Staff = () => {
     console.log('🔍 Comissões antes de enviar:', comissoesNumeros);
     console.log('🔍 Tipos:', Object.entries(comissoesNumeros).map(([k, v]) => `${k}: ${typeof v}`));
 
+    // Preparar dados para enviar
+    const updateData: any = {
+      ...dataToSave,
+      unit_id: formData.role === 'DONO' ? undefined : formData.unit_id,
+      comissoesServico: comissoesNumeros,
+    };
+
+    // Adicionar lavadorTipo apenas se for LAVADOR
+    if (formData.role === 'LAVADOR') {
+      updateData.lavadorTipo = formData.lavadorTipo;
+    }
+
     if (isEditing && currentEditingId) {
-      updateUser(currentEditingId, {
-        ...dataToSave,
-        unit_id:          formData.role === 'DONO' ? undefined : formData.unit_id,
-        comissoesServico: comissoesNumeros,
-      });
+      updateUser(currentEditingId, updateData);
     } else {
       if (!password) return;
       addUser({
         ...formData,
-        unit_id:          formData.role === 'DONO' ? undefined : formData.unit_id,
+        unit_id: formData.role === 'DONO' ? undefined : formData.unit_id,
         comissoesServico: comissoesNumeros,
       });
     }
