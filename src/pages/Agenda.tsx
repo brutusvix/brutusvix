@@ -486,7 +486,7 @@ export default function Agenda() {
                             className="fixed inset-0 z-40" 
                             onClick={() => setOpenMenuId(null)}
                           />
-                          <div className="absolute right-0 top-full mt-1 w-52 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                          <div className="fixed right-4 top-auto bottom-4 w-52 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-[70vh] overflow-y-auto custom-scrollbar">
                             {appt.status === 'AGENDADO' && (
                               <button
                                 onClick={() => {
