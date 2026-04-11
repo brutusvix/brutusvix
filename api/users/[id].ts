@@ -73,6 +73,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return acc;
       }, {} as any);
 
+      console.log('🔍 Atualizando usuário:', id);
+      console.log('🔍 Dados recebidos:', JSON.stringify(safeUpdates, null, 2));
+
       // Atualizar no banco de dados
       const { data, error: updateError } = await supabase
         .from('users')
@@ -82,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .single();
 
       if (updateError) {
-        console.error('Erro ao atualizar usuário:', updateError);
+        console.error('❌ Erro ao atualizar usuário:', updateError);
         
         // Se o erro for de coluna não existente, retornar mensagem específica
         if (updateError.message.includes('column') && updateError.message.includes('does not exist')) {
@@ -93,9 +96,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
         
-        return res.status(500).json({ error: 'Erro ao atualizar usuário', details: updateError.message });
+        return res.status(500).json({ 
+          error: 'Erro ao atualizar usuário', 
+          details: updateError.message,
+          code: updateError.code,
+          hint: updateError.hint
+        });
       }
 
+      console.log('✅ Usuário atualizado com sucesso');
       return res.status(200).json(data);
     }
 
