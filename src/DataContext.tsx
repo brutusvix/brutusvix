@@ -80,6 +80,7 @@ function mapUser(row: any): User {
     valorAlmoco: row.lunch_value || 0,
     valorPassagem: row.transport_value || 0,
     comissoesServico: row.fixed_service_commissions || {},
+    lavadorTipo: row.lavador_tipo || '01',
   };
 }
 
@@ -253,7 +254,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { data: extrasData },
       ] = await Promise.all([
         supabase.from('units').select('id,name,address,phone,is_open,operating_hours').is('deleted_at', null).order('name'),
-        supabase.from('users').select('id,auth_id,name,email,phone,role,unit_id,payment_type,daily_wage,base_commission_percent,lunch_value,transport_value,fixed_service_commissions').is('deleted_at', null).order('name'),
+        supabase.from('users').select('id,auth_id,name,email,phone,role,unit_id,payment_type,daily_wage,base_commission_percent,lunch_value,transport_value,fixed_service_commissions,lavador_tipo').is('deleted_at', null).order('name'),
         supabase.from('services').select('id,name,unit_id,price_hatch,price_sedan,price_suv,price_pickup,duration_minutes,active,category').is('deleted_at', null).eq('active', true).order('name'),
         supabase.from('extras').select('id,name,price,commission_value').eq('active', true).order('name'),
       ]);
