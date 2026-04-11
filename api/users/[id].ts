@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // Tentar ambos os nomes de variáveis de ambiente (com e sem VITE_)
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
