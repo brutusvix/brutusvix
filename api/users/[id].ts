@@ -65,16 +65,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'PATCH') {
       const updates = req.body;
 
+      // Remover campos undefined ou que possam causar erro se a coluna não existir
+      const safeUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as any);
+
       // Atualizar no banco de dados
       const { data, error: updateError } = await supabase
         .from('users')
-        .update(updates)
+        .update(safeUpdates)
         .eq('id', id)
         .select()
         .single();
 
       if (updateError) {
         console.error('Erro ao atualizar usuário:', updateError);
+        
+        // Se o erro for de coluna não existente, retornar mensagem específica
+        if (updateError.message.includes('column') && updateError.message.includes('does not exist')) {
+          return res.status(500).json({ 
+            error: 'Erro ao atualizar usuário', 
+            details: 'A coluna lavador_tipo não existe no banco de dados. Execute o script SQL add-lavador-tipo-column.sql no Supabase.',
+            sqlError: updateError.message 
+          });
+        }
+        
         return res.status(500).json({ error: 'Erro ao atualizar usuário', details: updateError.message });
       }
 
