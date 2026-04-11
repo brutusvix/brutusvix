@@ -5,11 +5,13 @@ import {
   MapPin, Phone, Plus, Trash2, Users
 } from 'lucide-react';
 import { useData } from '../DataContext';
+import { useAuth } from '../App';
 import BookingLinkManager from '../components/BookingLinkManager';
 import { OperatingHours, Unit } from '../types';
 
 export default function Settings() {
   const { units, updateUnit, addUnit, deleteUnit, users, updateUser } = useData();
+  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab]           = useState<'units' | 'hours' | 'links'>('units');
   const [selectedUnitId, setSelectedUnitId] = useState<string>(units[0]?.id || '');
   const [saveStatus, setSaveStatus]         = useState<'idle' | 'saving' | 'success'>('idle');
@@ -33,8 +35,14 @@ export default function Settings() {
   };
 
   // Atribuir lavador à unidade
-  const handleAssignUser = (userId: string, unitId: string | undefined) => {
-    updateUser(userId, { unit_id: unitId });
+  const handleAssignUser = async (userId: string, unitId: string | undefined) => {
+    try {
+      await updateUser(userId, { unit_id: unitId });
+      alert('Funcionário atribuído com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao atribuir funcionário:', error);
+      alert(`Erro ao atribuir funcionário: ${error.message}`);
+    }
   };
 
   const handleUpdateUnit = (e: React.FormEvent) => {
@@ -172,45 +180,47 @@ export default function Settings() {
                   </div>
 
                   {/* ── Funcionários atribuídos ── */}
-                  <div className="pt-4 border-t border-zinc-800/50">
-                    <div className="flex items-center gap-2 text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">
-                      <Users size={14} strokeWidth={1.5} /> Funcionários Atribuídos
-                    </div>
-                    <div className="space-y-2">
-                      {unitWashers.length === 0 && (
-                        <p className="text-xs text-zinc-600 italic">Nenhum funcionário atribuído.</p>
-                      )}
-                      {unitWashers.map(u => (
-                        <div key={u.id} className="flex items-center justify-between text-sm text-zinc-300 bg-zinc-800/30 rounded-lg px-3 py-2">
-                          <span>{u.name}</span>
-                          <button
-                            onClick={() => handleAssignUser(u.id, undefined)}
-                            className="text-zinc-500 hover:text-red-500 transition-colors"
-                            title="Remover da unidade">
-                            <Trash2 size={14} strokeWidth={1.5} />
-                          </button>
-                        </div>
-                      ))}
+                  {currentUser?.role === 'DONO' && (
+                    <div className="pt-4 border-t border-zinc-800/50">
+                      <div className="flex items-center gap-2 text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">
+                        <Users size={14} strokeWidth={1.5} /> Funcionários Atribuídos
+                      </div>
+                      <div className="space-y-2">
+                        {unitWashers.length === 0 && (
+                          <p className="text-xs text-zinc-600 italic">Nenhum funcionário atribuído.</p>
+                        )}
+                        {unitWashers.map(u => (
+                          <div key={u.id} className="flex items-center justify-between text-sm text-zinc-300 bg-zinc-800/30 rounded-lg px-3 py-2">
+                            <span>{u.name}</span>
+                            <button
+                              onClick={() => handleAssignUser(u.id, undefined)}
+                              className="text-zinc-500 hover:text-red-500 transition-colors"
+                              title="Remover da unidade">
+                              <Trash2 size={14} strokeWidth={1.5} />
+                            </button>
+                          </div>
+                        ))}
 
-                      {/* Dropdown para atribuir lavador disponível */}
-                      {availableWashers.length > 0 && (
-                        <select
-                          className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-lg py-1.5 px-3 text-xs text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-700 appearance-none cursor-pointer"
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              handleAssignUser(e.target.value, unit.id);
-                              e.target.value = '';
-                            }
-                          }}
-                          value="">
-                          <option value="">+ Atribuir Funcionário</option>
-                          {availableWashers.map(u => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
-                          ))}
-                        </select>
-                      )}
+                        {/* Dropdown para atribuir lavador disponível */}
+                        {availableWashers.length > 0 && (
+                          <select
+                            className="w-full bg-zinc-800/30 border border-zinc-700/50 rounded-lg py-2 px-3 text-xs text-zinc-300 hover:bg-zinc-800/50 hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-primary/50 appearance-none cursor-pointer transition-all"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAssignUser(e.target.value, unit.id);
+                                e.target.value = '';
+                              }
+                            }}
+                            value="">
+                            <option value="">+ Atribuir Funcionário</option>
+                            {availableWashers.map(u => (
+                              <option key={u.id} value={u.id}>{u.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })}

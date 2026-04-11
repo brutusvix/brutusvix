@@ -53,7 +53,11 @@ const Staff = () => {
   const buildInitialCommissions = (existing: { [key: string]: number }) => {
     const result: { [key: string]: number } = {};
     DEFAULT_COMMISSIONS.forEach(item => {
-      result[item.name] = existing[item.name] ?? item.defaultValue;
+      const existingValue = existing[item.name];
+      // Garantir que sempre seja número
+      result[item.name] = typeof existingValue === 'number' 
+        ? existingValue 
+        : (typeof existingValue === 'string' ? parseFloat(existingValue) : item.defaultValue) || item.defaultValue;
     });
     return result;
   };
@@ -91,18 +95,28 @@ const Staff = () => {
 
     const { password, ...dataToSave } = formData;
 
+    // Converter comissões para números (apenas se não for DONO)
+    const comissoesNumeros = formData.role === 'DONO' ? {} : Object.entries(editingCommissions).reduce((acc, [key, value]) => {
+      acc[key] = typeof value === 'string' ? parseFloat(value) || 0 : value;
+      return acc;
+    }, {} as { [key: string]: number });
+
+    console.log('🔍 Cargo:', formData.role);
+    console.log('🔍 Comissões antes de enviar:', comissoesNumeros);
+    console.log('🔍 Tipos:', Object.entries(comissoesNumeros).map(([k, v]) => `${k}: ${typeof v}`));
+
     if (isEditing && currentEditingId) {
       updateUser(currentEditingId, {
         ...dataToSave,
         unit_id:          formData.role === 'DONO' ? undefined : formData.unit_id,
-        comissoesServico: editingCommissions,
+        comissoesServico: comissoesNumeros,
       });
     } else {
       if (!password) return;
       addUser({
         ...formData,
         unit_id:          formData.role === 'DONO' ? undefined : formData.unit_id,
-        comissoesServico: editingCommissions,
+        comissoesServico: comissoesNumeros,
       });
     }
 
@@ -234,9 +248,21 @@ const Staff = () => {
                   <label className="block text-sm font-medium text-zinc-400 mb-1.5">Telefone</label>
                   <input
                     type="text"
+                    placeholder="(00) 00000-0000"
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '');
+                      if (value.length > 11) value = value.slice(0, 11);
+                      if (value.length > 6) {
+                        value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
+                      } else if (value.length > 2) {
+                        value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+                      } else if (value.length > 0) {
+                        value = `(${value}`;
+                      }
+                      setFormData({ ...formData, phone: value });
+                    }}
                   />
                 </div>
               </div>
@@ -309,17 +335,19 @@ const Staff = () => {
 
               {/* Comissões Fixas + Almoço */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1.5">Comissões Fixas</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowCommissionsModal(true)}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-2.5 px-4 text-white hover:bg-zinc-700 transition-colors text-sm font-medium"
-                  >
-                    Configurar
-                  </button>
-                </div>
-                <div>
+                {formData.role === 'LAVADOR' && (
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1.5">Comissões Fixas</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCommissionsModal(true)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-2.5 px-4 text-white hover:bg-zinc-700 transition-colors text-sm font-medium"
+                    >
+                      Configurar
+                    </button>
+                  </div>
+                )}
+                <div className={formData.role === 'LAVADOR' ? '' : 'col-span-2'}>
                   <label className="block text-sm font-medium text-zinc-400 mb-1.5">Valor Almoço (R$)</label>
                   <input
                     type="number"

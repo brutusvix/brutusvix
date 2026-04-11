@@ -8,6 +8,7 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import { EventEmitter } from 'events';
+import { nowLocal } from './src/utils/timezone.js';
 
 class WhatsAppService extends EventEmitter {
   private sock: WASocket | null = null;
@@ -149,7 +150,7 @@ class WhatsAppService extends EventEmitter {
     }
 
     // Verificar horário
-    const currentHour = new Date().getHours();
+    const currentHour = nowLocal().getHours();
     if (currentHour < this.config.startHour || currentHour >= this.config.endHour) {
       throw new Error(`Envio permitido apenas entre ${this.config.startHour}h e ${this.config.endHour}h`);
     }
@@ -189,7 +190,7 @@ class WhatsAppService extends EventEmitter {
       }
 
       // Verificar horário
-      const currentHour = new Date().getHours();
+      const currentHour = nowLocal().getHours();
       if (currentHour < this.config.startHour || currentHour >= this.config.endHour) {
         console.log('Fora do horário permitido');
         this.emit('outside-hours');

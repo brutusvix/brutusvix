@@ -25,8 +25,8 @@ export const createUserSchema = z.object({
     .min(8, 'Senha deve ter no mínimo 8 caracteres')
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Senha deve conter letras maiúsculas, minúsculas e números'),
   
-  role: z.enum(['DONO', 'LAVADOR'], {
-    errorMap: () => ({ message: 'Role deve ser DONO ou LAVADOR' })
+  role: z.enum(['DONO', 'GERENTE', 'LAVADOR'], {
+    errorMap: () => ({ message: 'Role deve ser DONO, GERENTE ou LAVADOR' })
   }),
   
   unit_id: z.string().uuid('ID da unidade inválido').optional().nullable(),

@@ -29,14 +29,14 @@ export default function CheckIn() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [plate, setPlate] = useState('');
-  const [selectedService, setSelectedService] = useState<any>(null);
+  const [selectedServices, setSelectedServices] = useState<any[]>([]); // Mudado para array
   const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('TODOS');
   const [selectedUnitFilter, setSelectedUnitFilter] = useState<string>('all');
   
   // Preços editáveis
-  const [customServicePrice, setCustomServicePrice] = useState<number | null>(null);
+  const [customServicePrices, setCustomServicePrices] = useState<{ [key: string]: number }>({}); // Mudado para objeto
   const [customExtraPrices, setCustomExtraPrices] = useState<{ [key: string]: number }>({});
   
   // New Client state
@@ -182,8 +182,8 @@ export default function CheckIn() {
 
   const handleCompleteCheckIn = async () => {
     if (!selectedClient && !showNewClientForm) return;
-    if (!selectedService) return;
-    if (!skipPlate && !plate) return; // Só exige placa se não estiver pulando
+    if (selectedServices.length === 0) return; // Mudado para verificar array
+    if (!skipPlate && !plate) return;
     if (isSubmitting) return;
 
     setIsSubmitting(true);
@@ -205,12 +205,12 @@ export default function CheckIn() {
         throw new Error('Erro ao obter dados do cliente. Tente novamente.');
       }
 
-      // 2. Ensure vehicle exists or create it (apenas se tiver placa ou carName)
+      // 2. Ensure vehicle exists or create it
       let vehicle = null;
       if (carName.trim()) {
         vehicle = await addVehicle({
           client_id: client.id,
-          model: carName.trim(), // Usar nome do carro digitado
+          model: carName.trim(),
           plate: skipPlate ? '' : plate.toUpperCase()
         });
 
@@ -219,44 +219,51 @@ export default function CheckIn() {
         }
       }
 
-      // Calcular preços (usar customizado se definido, senão usar o padrão)
+      // Calcular preço dos extras
       const extrasPrice = selectedExtras.reduce((acc, id) => {
         const extra = extras.find(e => e.id === id);
         const customPrice = customExtraPrices[id];
         return acc + (customPrice !== undefined ? customPrice : (extra?.price || 0));
       }, 0);
 
-      const baseServicePrice = selectedService.prices[vehicleInfo.type] || 0;
-      const servicePrice = customServicePrice !== null ? customServicePrice : baseServicePrice;
-
       // Criar data com hora atual mas dia escolhido
       const now = new Date();
       const selectedDate = new Date(serviceDate + 'T00:00:00');
       selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
 
-      // 3. Add appointment
+      // 3. Criar um agendamento combinado com todos os serviços
+      // Usar o primeiro serviço como principal e somar os preços
+      const totalServicesPrice = selectedServices.reduce((acc, service) => {
+        const customPrice = customServicePrices[service.id];
+        const basePrice = service.prices[vehicleInfo.type] || 0;
+        return acc + (customPrice !== undefined ? customPrice : basePrice);
+      }, 0);
+
+      const servicesNames = selectedServices.map(s => s.name).join(' + ');
+
       await addAppointment({
         client_id: client.id,
-        vehicle_id: vehicle?.id || null, // Pode ser null se não tiver veículo
-        service_id: selectedService.id,
+        vehicle_id: vehicle?.id || null,
+        service_id: selectedServices[0].id, // Usar primeiro serviço como referência
         unit_id: user?.unit_id || (units[0]?.id as any) || '',
         washer_id: user?.id,
         vehicle_type: vehicleInfo.type,
         plate: skipPlate ? '' : plate.toUpperCase(),
         vehicle_model: carName.trim() || 'Sem identificação',
-        start_time: selectedDate.toISOString(), // Usa data escolhida + hora atual
+        start_time: selectedDate.toISOString(),
         end_time: new Date(selectedDate.getTime() + 90 * 60 * 1000).toISOString(),
         status: 'EM_ANDAMENTO',
-        total_price: servicePrice + extrasPrice,
+        total_price: totalServicesPrice + extrasPrice,
         extras: selectedExtras,
         photo_url: capturedPhoto || undefined,
-        ai_data: aiResults || undefined
+        ai_data: aiResults || undefined,
+        service_name: servicesNames // Salvar nomes combinados
       });
 
       // Reset
       setStep(1);
       setSelectedClient(null);
-      setSelectedService(null);
+      setSelectedServices([]); // Mudado para array vazio
       setSelectedExtras([]);
       setShowNewClientForm(false);
       setNewClient({ name: '', phone: '' });
@@ -267,7 +274,7 @@ export default function CheckIn() {
       setCapturedPhoto(null);
       setAiResults(null);
       setVehicleInfo({ brand: '', model: '', color: '', type: 'HATCH' });
-      setCustomServicePrice(null);
+      setCustomServicePrices({}); // Mudado para objeto vazio
       setCustomExtraPrices({});
       setCategoryFilter('TODOS');
       setSkipPlate(false);
@@ -757,8 +764,8 @@ export default function CheckIn() {
               <div className="grid grid-cols-1 gap-3">
                 {filteredServices.map(service => {
                   const basePrice = service.prices[vehicleInfo.type] ?? 0;
-                  const isSelected = selectedService?.id === service.id;
-                  const currentPrice = isSelected && customServicePrice !== null ? customServicePrice : basePrice;
+                  const isSelected = selectedServices.some(s => s.id === service.id);
+                  const currentPrice = isSelected && customServicePrices[service.id] !== undefined ? customServicePrices[service.id] : basePrice;
                   
                   return (
                     <div key={service.id} className={`rounded-2xl border transition-all ${
@@ -768,9 +775,21 @@ export default function CheckIn() {
                     }`}>
                       <button
                         onClick={() => {
-                          setSelectedService(service);
-                          if (customServicePrice === null) {
-                            setCustomServicePrice(basePrice);
+                          // Toggle serviço (adicionar ou remover)
+                          const isSelected = selectedServices.some(s => s.id === service.id);
+                          if (isSelected) {
+                            setSelectedServices(prev => prev.filter(s => s.id !== service.id));
+                            setCustomServicePrices(prev => {
+                              const newPrices = { ...prev };
+                              delete newPrices[service.id];
+                              return newPrices;
+                            });
+                          } else {
+                            setSelectedServices(prev => [...prev, service]);
+                            setCustomServicePrices(prev => ({
+                              ...prev,
+                              [service.id]: basePrice
+                            }));
                           }
                         }}
                         className="w-full flex items-center justify-between p-5"
@@ -797,7 +816,10 @@ export default function CheckIn() {
                               step="0.01"
                               min={basePrice}
                               value={currentPrice}
-                              onChange={(e) => setCustomServicePrice(parseFloat(e.target.value) || basePrice)}
+                              onChange={(e) => setCustomServicePrices(prev => ({
+                                ...prev,
+                                [service.id]: parseFloat(e.target.value) || basePrice
+                              }))}
                               className="flex-1 bg-zinc-900/50 border border-zinc-800/50 rounded-xl py-2 px-3 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
                               placeholder={`Mínimo: R$ ${basePrice.toFixed(2)}`}
                             />
@@ -877,7 +899,13 @@ export default function CheckIn() {
               <div className="text-zinc-400 text-sm font-medium">Total Estimado:</div>
               <div className="text-2xl font-bold text-zinc-100">
                 R$ {(
-                  (customServicePrice !== null ? customServicePrice : (selectedService?.prices[vehicleInfo.type] || 0)) + 
+                  // Somar todos os serviços selecionados
+                  selectedServices.reduce((acc, service) => {
+                    const customPrice = customServicePrices[service.id];
+                    const basePrice = service.prices[vehicleInfo.type] || 0;
+                    return acc + (customPrice !== undefined ? customPrice : basePrice);
+                  }, 0) +
+                  // Somar todos os extras selecionados
                   selectedExtras.reduce((acc, id) => {
                     const extra = extras.find(e => e.id === id);
                     const customPrice = customExtraPrices[id];
@@ -895,7 +923,7 @@ export default function CheckIn() {
                 Voltar
               </button>
               <button
-                disabled={!selectedService || isSubmitting}
+                disabled={selectedServices.length === 0 || isSubmitting}
                 onClick={handleCompleteCheckIn}
                 className="flex-[2] bg-zinc-100 disabled:opacity-50 text-zinc-950 py-4 rounded-2xl font-bold text-lg hover:bg-white transition-all flex items-center justify-center gap-2"
               >

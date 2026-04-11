@@ -5,13 +5,15 @@ import { IMaskInput } from 'react-imask';
 import { useAuth } from '../App';
 
 const Clients = () => {
-  const { clients, vehicles, appointments, services, units, addClient } = useData();
+  const { clients, vehicles, appointments, services, units, addClient, updateClient } = useData();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [showOnlyRewards, setShowOnlyRewards] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingClient, setEditingClient] = useState<any>(null);
   
   // Estados para o formulário de novo cliente
   const [newClientName, setNewClientName] = useState('');
@@ -79,6 +81,33 @@ const Clients = () => {
     } catch (error: any) {
       console.error('Erro ao adicionar cliente:', error);
       alert(error.message || 'Erro ao adicionar cliente');
+    }
+  };
+
+  const handleEditClient = async () => {
+    if (!editingClient?.name?.trim() || !editingClient?.phone?.trim()) {
+      alert('Preencha nome e telefone');
+      return;
+    }
+
+    try {
+      await updateClient(editingClient.id, {
+        name: editingClient.name.trim(),
+        phone: editingClient.phone
+      });
+
+      setShowEditModal(false);
+      setEditingClient(null);
+      
+      // Atualizar selectedClient se estiver aberto
+      if (selectedClient?.id === editingClient.id) {
+        setSelectedClient({ ...selectedClient, ...editingClient });
+      }
+      
+      alert('Cliente atualizado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao atualizar cliente:', error);
+      alert(error.message || 'Erro ao atualizar cliente');
     }
   };
 
@@ -193,6 +222,17 @@ const Clients = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingClient(client);
+                          setShowEditModal(true);
+                        }}
+                        className="p-2 bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100 rounded-lg transition-colors"
+                        title="Editar cliente"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                      </button>
                       {(client.points || 0) >= 10 && (
                         <button 
                           onClick={(e) => handleWhatsApp(e, client)}
@@ -248,6 +288,54 @@ const Clients = () => {
                   className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 py-2.5 rounded-xl font-medium transition-colors text-sm"
                 >
                   Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Client Modal */}
+      {showEditModal && editingClient && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-3xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold text-zinc-100 mb-4 tracking-tight">Editar Cliente</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-2 uppercase tracking-wider">Nome</label>
+                <input 
+                  type="text" 
+                  placeholder="Nome" 
+                  value={editingClient.name}
+                  onChange={(e) => setEditingClient({ ...editingClient, name: e.target.value })}
+                  className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-700" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-2 uppercase tracking-wider">Telefone</label>
+                <IMaskInput 
+                  mask="(00) 00000-0000" 
+                  placeholder="Telefone" 
+                  value={editingClient.phone}
+                  onAccept={(value) => setEditingClient({ ...editingClient, phone: value })}
+                  className="w-full bg-zinc-800/50 border border-zinc-800/50 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-700" 
+                />
+              </div>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingClient(null);
+                  }} 
+                  className="flex-1 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-800/50 text-zinc-300 py-2.5 rounded-xl font-medium transition-colors text-sm"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleEditClient} 
+                  className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 py-2.5 rounded-xl font-medium transition-colors text-sm"
+                >
+                  Salvar Alterações
                 </button>
               </div>
             </div>

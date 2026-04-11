@@ -18,6 +18,7 @@ import {
 } from './src/validation/schemas.js';
 import logger, { logError, logUserAction, logApiAccess, logSecurityEvent } from './src/utils/logger.js';
 import { whatsappService } from './whatsapp-service';
+import { nowLocalISO, todayLocal } from './src/utils/timezone.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -160,7 +161,7 @@ async function startServer() {
           ip: req.ip,
           error: error?.message 
         });
-        return res.sendStatus(403);
+        return res.status(403).json({ error: 'Token inválido ou expirado' });
       }
 
       // Get user role and unit_id from DB
@@ -179,7 +180,7 @@ async function startServer() {
     } catch (err) {
       console.error('Authentication error:', err);
       logError('Authentication error', err as Error, { path: req.path });
-      res.sendStatus(403);
+      res.status(403).json({ error: 'Erro de autenticação' });
     }
   };
 
@@ -212,6 +213,13 @@ async function startServer() {
     if (req.user.role !== 'DONO') return res.status(403).json({ error: 'Acesso negado' });
 
     try {
+      // Debug: verificar o que está chegando
+      console.log('📥 Body recebido:', JSON.stringify(req.body, null, 2));
+      console.log('📥 Tipo das comissões:', typeof req.body.comissoesServico);
+      if (req.body.comissoesServico) {
+        console.log('📥 Comissões:', Object.entries(req.body.comissoesServico).map(([k, v]) => `${k}: ${typeof v} = ${v}`));
+      }
+      
       // Validar input com Zod
       const validatedData = createUserSchema.parse(req.body);
       
@@ -260,7 +268,7 @@ async function startServer() {
       res.json(newUser);
     } catch (err: any) {
       // Erro de validação Zod
-      if (err.name === 'ZodError') {
+      if (err.name === 'ZodError' && err.errors) {
         return res.status(400).json({ 
           error: 'Dados inválidos', 
           details: err.errors.map((e: any) => ({
@@ -269,14 +277,67 @@ async function startServer() {
           }))
         });
       }
-      logError('Error creating user', err, { email });
-      res.status(500).json({ error: err.message });
+      console.error('Error creating user:', err);
+      logError('Error creating user', err, { body: req.body });
+      res.status(500).json({ error: err.message || 'Erro ao criar usuário' });
+    }
+  });
+
+  // Criar transação
+  app.post('/api/transactions', authenticateToken, async (req: any, res) => {
+    if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+
+    try {
+      console.log('📥 Criando transação:', req.body);
+      const { unit_id, type, amount, category, description, date, payment_method } = req.body;
+
+      const transactionData = {
+        unit_id,
+        type,
+        amount,
+        category,
+        description,
+        date: date || new Date().toISOString(),
+        payment_method
+      };
+
+      console.log('📤 Dados para inserir:', transactionData);
+
+      const { data: newTransaction, error } = await supabase.from('transactions').insert(transactionData).select().single();
+
+      if (error) {
+        console.error('❌ Erro do Supabase:', error);
+        return res.status(400).json({ error: error.message });
+      }
+
+      console.log('✅ Transação criada:', newTransaction);
+      res.json(newTransaction);
+    } catch (err: any) {
+      console.error('❌ Erro ao criar transação:', err);
+      logError('Error creating transaction', err, { body: req.body });
+      res.status(500).json({ error: err.message || 'Erro ao criar transação' });
     }
   });
 
   app.patch('/api/users/:id', authenticateToken, async (req: any, res) => {
     if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
-    if (req.user.role !== 'DONO') return res.status(403).json({ error: 'Acesso negado' });
+    
+    // Verificar role do usuário diretamente do banco
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('auth_id', req.user.id)
+      .single();
+    
+    if (currentUser?.role !== 'DONO') {
+      return res.status(403).json({ 
+        error: 'Acesso negado',
+        debug: {
+          userRole: currentUser?.role,
+          expected: 'DONO'
+        }
+      });
+    }
 
     const { id } = req.params;
 
@@ -318,7 +379,7 @@ async function startServer() {
       res.json(updatedUser);
     } catch (err: any) {
       // Erro de validação Zod
-      if (err.name === 'ZodError') {
+      if (err.name === 'ZodError' && err.errors) {
         return res.status(400).json({ 
           error: 'Dados inválidos', 
           details: err.errors.map((e: any) => ({
@@ -327,7 +388,8 @@ async function startServer() {
           }))
         });
       }
-      res.status(500).json({ error: err.message });
+      console.error('Error updating user:', err);
+      res.status(500).json({ error: err.message || 'Erro ao atualizar usuário' });
     }
   });
 
@@ -346,7 +408,7 @@ async function startServer() {
 
       const { error } = await supabase
         .from('users')
-        .update({ deleted_at: new Date().toISOString() })
+        .update({ deleted_at: nowLocalISO() })
         .eq('id', id);
 
       if (error) return res.status(400).json({ error: error.message });
@@ -382,7 +444,7 @@ async function startServer() {
       totalIncomeQuery = totalIncomeQuery.eq('unit_id', unitId);
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocal();
     
     const { count: vehiclesToday } = await query.eq('date(start_time)', today);
     const { data: incomeTodayData } = await incomeQuery.eq('date(date)', today);
@@ -452,9 +514,9 @@ async function startServer() {
       service_id: serviceId,
       unit_id: unitId,
       vehicle_model: model,
-      vehicle_plate: plate,
+      plate: plate,
       vehicle_color: color,
-      start_time: new Date().toISOString(),
+      start_time: nowLocalISO(),
       status: 'AGUARDANDO'
     });
     if (error) return res.status(500).json({ error: error.message });

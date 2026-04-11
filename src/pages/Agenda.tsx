@@ -62,7 +62,8 @@ const STATUS_CFG: Record<string, { color: string; bg: string; border: string; la
 export default function Agenda() {
   const {
     appointments, clients, services, extras,
-    units, users, addAppointment, updateAppointment, deleteAppointment, refetch,
+    units, users, addAppointment, updateAppointment, deleteAppointment, updateClient, refetch,
+    addTransaction,
   } = useData();
   const { user } = useAuth();
 
@@ -76,6 +77,17 @@ export default function Agenda() {
   const [selExtras, setSelExtras]         = useState<string[]>([]);
   const [bookingError, setBookingError]   = useState<string | null>(null);
   const [openMenuId, setOpenMenuId]       = useState<string | null>(null);
+  const [editingClient, setEditingClient] = useState<any>(null);
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [showEditDateModal, setShowEditDateModal] = useState(false);
+  const [selectedAppointments, setSelectedAppointments] = useState<string[]>([]);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkEditDate, setBulkEditDate] = useState('');
+  const [showBulkEditUnitModal, setShowBulkEditUnitModal] = useState(false);
+  const [bulkEditUnit, setBulkEditUnit] = useState('');
+  const [showBulkEditWasherModal, setShowBulkEditWasherModal] = useState(false);
+  const [bulkEditWasher, setBulkEditWasher] = useState('');
   
   // Estados para novo sistema de pagamento
   const [payments, setPayments] = useState<Record<string, number>>({
@@ -152,10 +164,18 @@ export default function Agenda() {
     ).length;
     if (busy >= 2) { setBookingError('Horário com 2 agendamentos.'); return; }
     setBookingError(null);
+    
+    // Calcular o preço total e pegar o nome do cliente
+    const selectedService = services.find(s => s.id === newAppt.service_id);
+    const selectedClient = clients.find(c => c.id === newAppt.client_id);
+    const totalPrice = calcPrice(selectedService, newAppt.vehicle_type);
+    
     addAppointment({
       ...newAppt,
       washer_id: newAppt.washer_id || undefined,
       end_time:  new Date(ms + 90 * 60_000).toISOString(),
+      total_price: totalPrice,
+      client_name: selectedClient?.name, // Salvar nome como fallback
     });
     setIsModalOpen(false);
     setNewAppt(emptyAppt);
@@ -171,12 +191,14 @@ export default function Agenda() {
           <h1 className="text-2xl font-bold text-zinc-100">Agenda</h1>
           <p className="text-zinc-500 text-sm">Agendamentos da semana com detalhes completos do veículo.</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-zinc-100 text-zinc-950 px-4 py-2 rounded-xl text-sm font-bold hover:bg-white transition-colors flex items-center gap-2 self-start"
-        >
-          <Plus size={16} /> Novo Agendamento
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-zinc-100 text-zinc-950 px-4 py-2 rounded-xl text-sm font-bold hover:bg-white transition-colors flex items-center gap-2 self-start"
+          >
+            <Plus size={16} /> Novo Agendamento
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -276,16 +298,84 @@ export default function Agenda() {
       </div>
 
       {/* Título do dia selecionado */}
-      <div>
-        <h2 className="font-bold text-zinc-100 text-base">
-          {sameDay(selectedDay, today) ? 'Hoje — ' : ''}
-          {DAYS_PT[selectedDay.getDay()]}, {selectedDay.getDate()} de {MONTHS_PT[selectedDay.getMonth()]}
-        </h2>
-        <p className="text-zinc-500 text-sm mt-0.5">
-          {dayAppts.length === 0
-            ? 'Nenhum agendamento neste dia'
-            : `${dayAppts.length} agendamento${dayAppts.length > 1 ? 's' : ''}`}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-bold text-zinc-100 text-base">
+            {sameDay(selectedDay, today) ? 'Hoje — ' : ''}
+            {DAYS_PT[selectedDay.getDay()]}, {selectedDay.getDate()} de {MONTHS_PT[selectedDay.getMonth()]}
+          </h2>
+          <p className="text-zinc-500 text-sm mt-0.5">
+            {dayAppts.length === 0
+              ? 'Nenhum agendamento neste dia'
+              : `${dayAppts.length} agendamento${dayAppts.length > 1 ? 's' : ''}`}
+          </p>
+        </div>
+        {dayAppts.length > 0 && user?.role === 'DONO' && (
+          <div className="flex items-center gap-3">
+            {selectedAppointments.length > 0 ? (
+              <>
+                <button
+                  onClick={() => {
+                    setBulkEditDate(selectedDay.toISOString().split('T')[0]);
+                    setShowBulkEditModal(true);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                >
+                  <CalendarIcon size={14} />
+                  Editar Data
+                </button>
+                <button
+                  onClick={() => {
+                    setBulkEditUnit(selectedUnit === 'all' ? units[0]?.id : selectedUnit);
+                    setShowBulkEditUnitModal(true);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  Mudar Unidade
+                </button>
+                <button
+                  onClick={() => {
+                    setBulkEditWasher('');
+                    setShowBulkEditWasherModal(true);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  Atribuir Lavador
+                </button>
+                <span className="text-xs text-zinc-400 font-medium">
+                  {selectedAppointments.length} selecionado{selectedAppointments.length > 1 ? 's' : ''}
+                </span>
+                <button
+                  onClick={() => setSelectedAppointments([])}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  Limpar
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  if (selectedAppointments.length === dayAppts.length) {
+                    setSelectedAppointments([]);
+                  } else {
+                    setSelectedAppointments(dayAppts.map(a => a.id));
+                  }
+                }}
+                className="text-xs text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-1"
+              >
+                <input 
+                  type="checkbox" 
+                  checked={selectedAppointments.length === dayAppts.length && dayAppts.length > 0}
+                  onChange={() => {}}
+                  className="rounded"
+                />
+                Selecionar todos
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Cards de agendamento ── */}
@@ -314,12 +404,14 @@ export default function Agenda() {
           const model      = appt.vehicle_model ?? '';
           const color      = appt.vehicle_color ?? '';
           const phone      = client?.phone ?? '';
+          const isSelected = selectedAppointments.includes(appt.id);
 
           return (
             <div
               key={appt.id}
               className={`bg-zinc-900 border rounded-2xl overflow-hidden transition-all hover:border-zinc-700 ${
-                appt.status === 'CANCELADO' ? 'border-zinc-800/30 opacity-40' : 'border-zinc-800'
+                appt.status === 'CANCELADO' ? 'border-zinc-800/30 opacity-40' : 
+                isSelected ? 'border-brand-primary ring-2 ring-brand-primary/20' : 'border-zinc-800'
               }`}
             >
               {/* Barra de status colorida */}
@@ -327,29 +419,46 @@ export default function Agenda() {
 
               <div className="p-5 space-y-4">
 
-                {/* Linha 1: cliente | preço | menu */}
+                {/* Linha 1: checkbox | cliente | preço | menu */}
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-black text-zinc-100 text-base">{clientName}</h3>
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${st.color} ${st.bg} ${st.border}`}>
-                        {st.label}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="flex items-center gap-1 text-zinc-400 text-sm">
-                        <Clock size={13} className="text-zinc-500" />
-                        {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {phone && (
-                        <a
-                          href={`https://wa.me/55${phone.replace(/\D/g, '')}`}
-                          target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-emerald-500 hover:text-emerald-400 font-medium transition-colors"
-                        >
-                          💬 {phone}
-                        </a>
-                      )}
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {user?.role === 'DONO' && (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (isSelected) {
+                            setSelectedAppointments(prev => prev.filter(id => id !== appt.id));
+                          } else {
+                            setSelectedAppointments(prev => [...prev, appt.id]);
+                          }
+                        }}
+                        className="mt-1 w-4 h-4 rounded border-zinc-700 text-brand-primary focus:ring-brand-primary focus:ring-offset-zinc-900"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-black text-zinc-100 text-base">{clientName}</h3>
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${st.color} ${st.bg} ${st.border}`}>
+                          {st.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <span className="flex items-center gap-1 text-zinc-400 text-sm">
+                          <Clock size={13} className="text-zinc-500" />
+                          {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {phone && (
+                          <a
+                            href={`https://wa.me/55${phone.replace(/\D/g, '')}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-emerald-500 hover:text-emerald-400 font-medium transition-colors"
+                          >
+                            💬 {phone}
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -391,6 +500,51 @@ export default function Agenda() {
                                 className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 flex items-center gap-2 border-b border-zinc-800"
                               >
                                 <AlertCircle size={14} className="text-orange-400" /> Iniciar Serviço
+                              </button>
+                            )}
+                            {user?.role === 'DONO' && (
+                              <div className="border-b border-zinc-800">
+                                <p className="px-4 py-2 text-[10px] font-bold text-zinc-600 uppercase tracking-wider">Mudar Unidade</p>
+                                {units.map(u => (
+                                  <button
+                                    key={u.id}
+                                    onClick={() => {
+                                      updateAppointment(appt.id, { unit_id: u.id });
+                                      setOpenMenuId(null);
+                                    }}
+                                    className={`w-full text-left px-4 py-2 text-sm hover:bg-zinc-800 flex items-center gap-2 ${
+                                      appt.unit_id === u.id ? 'text-brand-primary font-bold' : 'text-zinc-400'
+                                    }`}
+                                  >
+                                    {appt.unit_id === u.id && '✓'} {u.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {client && (
+                              <button
+                                onClick={() => {
+                                  setEditingClient(client);
+                                  setShowEditClientModal(true);
+                                  setOpenMenuId(null);
+                                }}
+                                className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 flex items-center gap-2 border-b border-zinc-800"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                                Editar Cliente
+                              </button>
+                            )}
+                            {user?.role === 'DONO' && (
+                              <button
+                                onClick={() => {
+                                  setEditingAppointment(appt);
+                                  setShowEditDateModal(true);
+                                  setOpenMenuId(null);
+                                }}
+                                className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 flex items-center gap-2 border-b border-zinc-800"
+                              >
+                                <CalendarIcon size={14} className="text-zinc-400" />
+                                Editar Data/Hora
                               </button>
                             )}
                             {phone && (
@@ -757,7 +911,7 @@ export default function Agenda() {
                   // Criar transações para cada forma de pagamento
                   for (const [method, value] of Object.entries(payments)) {
                     if (value > 0) {
-                      const transactionData = {
+                      await addTransaction({
                         unit_id: paymentAppt.unit_id,
                         type: 'INCOME',
                         amount: value,
@@ -765,14 +919,7 @@ export default function Agenda() {
                         description: `${method.replace(/_/g, ' ')} - ${services.find(s => s.id === paymentAppt.service_id)?.name || 'Serviço'}`,
                         date: new Date().toISOString(),
                         payment_method: method
-                      };
-                      
-                      const { error } = await supabase.from('transactions').insert(transactionData);
-                      
-                      if (error) {
-                        console.error('Erro ao criar transação:', error);
-                        throw error;
-                      }
+                      });
                     }
                   }
                   
@@ -938,6 +1085,409 @@ export default function Agenda() {
         </div>
       )}
 
+      {/* Modal: Editar Cliente */}
+      {showEditClientModal && editingClient && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-zinc-100 mb-4">Editar Cliente</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Nome</label>
+                <input 
+                  type="text" 
+                  value={editingClient.name || ''}
+                  onChange={(e) => setEditingClient({ ...editingClient, name: e.target.value })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-brand-primary" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Telefone</label>
+                <IMaskInput 
+                  mask="(00) 00000-0000" 
+                  value={editingClient.phone || ''}
+                  onAccept={(value: string) => setEditingClient({ ...editingClient, phone: value })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-brand-primary" 
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    setShowEditClientModal(false);
+                    setEditingClient(null);
+                  }} 
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!editingClient.name?.trim() || !editingClient.phone?.trim()) {
+                      alert('Preencha nome e telefone');
+                      return;
+                    }
+                    try {
+                      await updateClient(editingClient.id, {
+                        name: editingClient.name.trim(),
+                        phone: editingClient.phone
+                      });
+                      setShowEditClientModal(false);
+                      setEditingClient(null);
+                      alert('Cliente atualizado com sucesso!');
+                    } catch (error: any) {
+                      console.error('Erro ao atualizar cliente:', error);
+                      alert(error.message || 'Erro ao atualizar cliente');
+                    }
+                  }} 
+                  className="flex-1 bg-brand-primary hover:bg-brand-primary-hover text-zinc-950 py-3 rounded-xl font-bold transition-colors"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Data/Hora */}
+      {showEditDateModal && editingAppointment && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-zinc-100 mb-4">Editar Data e Hora</h2>
+            <div className="space-y-4">
+              <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Agendamento</p>
+                <p className="text-zinc-100 font-bold">
+                  {clients.find(c => c.id === editingAppointment.client_id)?.name || editingAppointment.client_name || 'Cliente'}
+                </p>
+                <p className="text-zinc-400 text-sm mt-1">
+                  {editingAppointment.plate || editingAppointment.vehicle_model || 'Veículo'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                  Data e Hora do Serviço
+                </label>
+                <input 
+                  type="datetime-local" 
+                  value={editingAppointment.start_time ? new Date(editingAppointment.start_time).toISOString().slice(0, 16) : ''}
+                  onChange={(e) => setEditingAppointment({ ...editingAppointment, start_time: e.target.value })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-brand-primary" 
+                />
+                <p className="text-xs text-zinc-500 mt-2">
+                  💡 Dica: Use isso para corrigir lançamentos com data errada
+                </p>
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                <p className="text-xs text-yellow-500">
+                  ⚠️ Isso vai alterar a data do agendamento. Use com cuidado!
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    setShowEditDateModal(false);
+                    setEditingAppointment(null);
+                  }} 
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!editingAppointment.start_time) {
+                      alert('Selecione uma data e hora');
+                      return;
+                    }
+                    try {
+                      await updateAppointment(editingAppointment.id, {
+                        start_time: new Date(editingAppointment.start_time).toISOString()
+                      });
+                      setShowEditDateModal(false);
+                      setEditingAppointment(null);
+                      alert('Data atualizada com sucesso!');
+                    } catch (error: any) {
+                      console.error('Erro ao atualizar data:', error);
+                      alert(error.message || 'Erro ao atualizar data');
+                    }
+                  }} 
+                  className="flex-1 bg-brand-primary hover:bg-brand-primary-hover text-zinc-950 py-3 rounded-xl font-bold transition-colors"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Data em Massa */}
+      {showBulkEditModal && selectedAppointments.length > 0 && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-zinc-100 mb-4">Editar Data em Massa</h2>
+            <div className="space-y-4">
+              <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Agendamentos Selecionados</p>
+                <p className="text-2xl font-black text-brand-primary">{selectedAppointments.length}</p>
+                <p className="text-xs text-zinc-400 mt-1">
+                  {selectedAppointments.length === 1 ? 'agendamento será movido' : 'agendamentos serão movidos'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                  Nova Data
+                </label>
+                <input 
+                  type="date" 
+                  value={bulkEditDate}
+                  onChange={(e) => setBulkEditDate(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-brand-primary" 
+                />
+                <p className="text-xs text-zinc-500 mt-2">
+                  💡 Os horários serão mantidos, apenas a data será alterada
+                </p>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3">
+                <p className="text-xs text-blue-400">
+                  ℹ️ Exemplo: Se um carro está às 21:30 de ontem, ficará às 21:30 da nova data
+                </p>
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                <p className="text-xs text-yellow-500">
+                  ⚠️ Isso vai alterar {selectedAppointments.length} agendamento{selectedAppointments.length > 1 ? 's' : ''}. Use com cuidado!
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    setShowBulkEditModal(false);
+                    setBulkEditDate('');
+                  }} 
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!bulkEditDate) {
+                      alert('Selecione uma data');
+                      return;
+                    }
+                    try {
+                      // Atualizar cada agendamento mantendo o horário
+                      for (const apptId of selectedAppointments) {
+                        const appt = appointments.find(a => a.id === apptId);
+                        if (appt) {
+                          const oldDate = new Date(appt.start_time);
+                          const newDate = new Date(bulkEditDate);
+                          newDate.setHours(oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
+                          
+                          await updateAppointment(apptId, {
+                            start_time: newDate.toISOString()
+                          });
+                        }
+                      }
+                      setShowBulkEditModal(false);
+                      setBulkEditDate('');
+                      setSelectedAppointments([]);
+                      alert(`${selectedAppointments.length} agendamento${selectedAppointments.length > 1 ? 's atualizados' : ' atualizado'} com sucesso!`);
+                    } catch (error: any) {
+                      console.error('Erro ao atualizar datas:', error);
+                      alert(error.message || 'Erro ao atualizar datas');
+                    }
+                  }} 
+                  className="flex-1 bg-brand-primary hover:bg-brand-primary-hover text-zinc-950 py-3 rounded-xl font-bold transition-colors"
+                >
+                  Mover Todos
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Mudar Unidade em Massa */}
+      {showBulkEditUnitModal && selectedAppointments.length > 0 && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-zinc-100 mb-4">Mudar Unidade em Massa</h2>
+            <div className="space-y-4">
+              <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Agendamentos Selecionados</p>
+                <p className="text-2xl font-black text-purple-500">{selectedAppointments.length}</p>
+                <p className="text-xs text-zinc-400 mt-1">
+                  {selectedAppointments.length === 1 ? 'agendamento será movido' : 'agendamentos serão movidos'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                  Nova Unidade
+                </label>
+                <select
+                  value={bulkEditUnit}
+                  onChange={(e) => setBulkEditUnit(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  {units.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-500 mt-2">
+                  💡 Todos os agendamentos selecionados serão movidos para esta unidade
+                </p>
+              </div>
+
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-3">
+                <p className="text-xs text-purple-400">
+                  ℹ️ Útil para corrigir lançamentos feitos na unidade errada
+                </p>
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                <p className="text-xs text-yellow-500">
+                  ⚠️ Isso vai alterar a unidade de {selectedAppointments.length} agendamento{selectedAppointments.length > 1 ? 's' : ''}!
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    setShowBulkEditUnitModal(false);
+                    setBulkEditUnit('');
+                  }} 
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!bulkEditUnit) {
+                      alert('Selecione uma unidade');
+                      return;
+                    }
+                    try {
+                      // Atualizar cada agendamento
+                      for (const apptId of selectedAppointments) {
+                        await updateAppointment(apptId, {
+                          unit_id: bulkEditUnit
+                        });
+                      }
+                      setShowBulkEditUnitModal(false);
+                      setBulkEditUnit('');
+                      setSelectedAppointments([]);
+                      alert(`${selectedAppointments.length} agendamento${selectedAppointments.length > 1 ? 's movidos' : ' movido'} para ${units.find(u => u.id === bulkEditUnit)?.name}!`);
+                    } catch (error: any) {
+                      console.error('Erro ao atualizar unidades:', error);
+                      alert(error.message || 'Erro ao atualizar unidades');
+                    }
+                  }} 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-xl font-bold transition-colors"
+                >
+                  Mover Todos
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Atribuir Lavador em Massa */}
+      {showBulkEditWasherModal && selectedAppointments.length > 0 && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-zinc-100 mb-4">Atribuir Lavador em Massa</h2>
+            <div className="space-y-4">
+              <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Agendamentos Selecionados</p>
+                <p className="text-2xl font-black text-emerald-500">{selectedAppointments.length}</p>
+                <p className="text-xs text-zinc-400 mt-1">
+                  {selectedAppointments.length === 1 ? 'agendamento será atribuído' : 'agendamentos serão atribuídos'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                  Lavador
+                </label>
+                <select
+                  value={bulkEditWasher}
+                  onChange={(e) => setBulkEditWasher(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="">Nenhum (remover atribuição)</option>
+                  {users
+                    .filter(u => u.role === 'LAVADOR')
+                    .map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} {u.unit_id && `• ${units.find(un => un.id === u.unit_id)?.name || ''}`}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-zinc-500 mt-2">
+                  💡 Atribua um lavador para todos os agendamentos selecionados
+                </p>
+              </div>
+
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
+                <p className="text-xs text-emerald-400">
+                  ℹ️ Útil para distribuir serviços entre lavadores ou corrigir atribuições
+                </p>
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+                <p className="text-xs text-yellow-500">
+                  ⚠️ Isso vai alterar o lavador de {selectedAppointments.length} agendamento{selectedAppointments.length > 1 ? 's' : ''}!
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    setShowBulkEditWasherModal(false);
+                    setBulkEditWasher('');
+                  }} 
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                    try {
+                      // Atualizar cada agendamento
+                      for (const apptId of selectedAppointments) {
+                        await updateAppointment(apptId, {
+                          washer_id: bulkEditWasher || null
+                        });
+                      }
+                      setShowBulkEditWasherModal(false);
+                      setBulkEditWasher('');
+                      setSelectedAppointments([]);
+                      const washerName = bulkEditWasher 
+                        ? users.find(u => u.id === bulkEditWasher)?.name 
+                        : 'Nenhum';
+                      alert(`${selectedAppointments.length} agendamento${selectedAppointments.length > 1 ? 's atribuídos' : ' atribuído'} para ${washerName}!`);
+                    } catch (error: any) {
+                      console.error('Erro ao atribuir lavador:', error);
+                      alert(error.message || 'Erro ao atribuir lavador');
+                    }
+                  }} 
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-colors"
+                >
+                  Atribuir Todos
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Servicos extras vendidos ao finalizar */}
       {extraAppt && (() => {

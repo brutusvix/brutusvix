@@ -9,6 +9,7 @@ export default function ProductionPayroll() {
   const [selectedUnit, setSelectedUnit] = useState<string | 'ALL'>('ALL');
   const [period, setPeriod] = useState<'today' | 'yesterday' | 'dayBeforeYesterday' | 'week' | 'month' | 'custom'>('today');
   const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [marmitaDescontos, setMarmitaDescontos] = useState<{ [empId: string]: boolean }>({});
 
   const filterDate = (dateString: string) => {
     const now = new Date();
@@ -60,6 +61,12 @@ export default function ProductionPayroll() {
     const totalExtrasCommission = empProduction.reduce((acc, p) => acc + (p.comissaoExtras || 0), 0);
     const totalGeral           = totalServicos + totalExtrasRevenue;
 
+    // Contar lavadores da mesma unidade para divisão de comissão
+    const lavadoresDaUnidade = users.filter(u => 
+      u.role === 'LAVADOR' && u.unit_id === emp.unit_id
+    ).length;
+    const divisorComissao = lavadoresDaUnidade > 0 ? lavadoresDaUnidade : 1;
+
     // Usa commission_service já calculado no banco (pelo trigger)
     // como fallback calcula pelo percentual
     const comissaoServicos = empProduction.reduce((acc, p) => {
@@ -70,25 +77,33 @@ export default function ProductionPayroll() {
       const fixed = emp.comissoesServico?.[p.servico];
       if (fixed !== undefined && fixed > 0) return acc + fixed;
       return acc + (p.valorServico * (emp.comissaoPercentualServico || 0));
-    }, 0);
-    const comissaoTotal = comissaoServicos + totalExtrasCommission;
+    }, 0) / divisorComissao;
+    
+    const comissaoTotal = (comissaoServicos + totalExtrasCommission) / divisorComissao;
+
+    // Cálculo de diária com teto de R$ 110,00 (11 carros × R$ 10,00)
+    const carrosLavados = empProduction.length;
+    const valorDiaria = Math.min(carrosLavados * 10, 110);
 
     const appliesFixedCosts = selectedUnit === 'ALL' || emp.unit_id === selectedUnit;
     const uniqueDaysWorked  = new Set(empProduction.map(p => p.data)).size;
     const daysToApply       = (period === 'today' || period === 'custom') ? 1 : uniqueDaysWorked;
-    const valorDiaria       = appliesFixedCosts ? (emp.valorDiaria || 0) * daysToApply : 0;
     const worked            = empProduction.length > 0 || valorDiaria > 0;
     const descontos         = appliesFixedCosts && worked
       ? ((emp.valorAlmoco || 0) + (emp.valorPassagem || 0)) * daysToApply
       : 0;
 
+    // Desconto de marmita (R$ 15,00) controlado por checkbox
+    const descontoMarmita = marmitaDescontos[emp.id] ? 15 : 0;
+
     const valorFinal =
       (emp.tipoPagamento === 'diaria'   ? valorDiaria : 0) +
       (emp.tipoPagamento === 'comissao' ? comissaoTotal : 0) +
       (emp.tipoPagamento === 'misto'    ? valorDiaria + comissaoTotal : 0) -
-      descontos;
+      descontos -
+      descontoMarmita;
 
-    return { ...emp, carrosLavados: empProduction.length, totalServicos, totalExtras: totalExtrasRevenue, totalGeral, comissaoTotal, valorDiariaAplicada: valorDiaria, valorFinal, descontos };
+    return { ...emp, carrosLavados: empProduction.length, totalServicos, totalExtras: totalExtrasRevenue, totalGeral, comissaoTotal, valorDiariaAplicada: valorDiaria, valorFinal, descontos, descontoMarmita, divisorComissao };
   });
 
   const totalFaturado          = filteredProduction.reduce((acc, p) => acc + p.valorServico + p.extras.reduce((s, e) => s + e.valor, 0), 0);
@@ -126,12 +141,14 @@ export default function ProductionPayroll() {
     doc.text(`Lucro Estimado: R$ ${(lucroEstimado ?? 0).toFixed(2)}`, 14, 40);
     autoTable(doc, {
       startY: 45,
-      head: [['Funcionário', 'Carros', 'Total Gerado', 'Comissão', 'Diária', 'Descontos', 'Total a Pagar']],
+      head: [['Funcionário', 'Carros', 'Total Gerado', 'Comissão', 'Diária', 'Descontos', 'Marmita', 'Total a Pagar']],
       body: employeeStats.map(emp => [
         emp.name, emp.carrosLavados.toString(),
         `R$ ${(emp.totalGeral ?? 0).toFixed(2)}`, `R$ ${(emp.comissaoTotal ?? 0).toFixed(2)}`,
         `R$ ${(emp.tipoPagamento !== 'comissao' ? (emp.valorDiariaAplicada ?? 0) : 0).toFixed(2)}`,
-        `R$ ${(emp.descontos ?? 0).toFixed(2)}`, `R$ ${(emp.valorFinal ?? 0).toFixed(2)}`,
+        `R$ ${(emp.descontos ?? 0).toFixed(2)}`,
+        marmitaDescontos[emp.id] ? 'R$ 15,00' : 'R$ 0,00',
+        `R$ ${(emp.valorFinal ?? 0).toFixed(2)}`,
       ]),
     });
     doc.save('relatorio-producao.pdf');
@@ -188,46 +205,103 @@ export default function ProductionPayroll() {
         </div>
       </div>
 
-      <div className="bg-zinc-900/50 rounded-2xl border border-zinc-800/50 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-zinc-400">
-            <thead className="text-xs uppercase bg-zinc-900/80 text-zinc-500 border-b border-zinc-800/50">
-              <tr>
-                {['Funcionário','Carros','Total Gerado','Comissão','Diária','Descontos','Total a Pagar','Ação'].map(h => (
-                  <th key={h} className="p-4 font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/50">
-              {employeeStats.length === 0 && (
-                <tr><td colSpan={8} className="p-8 text-center text-zinc-600">Nenhum funcionário encontrado para este filtro.</td></tr>
-              )}
-              {employeeStats.map(emp => (
-                <tr key={emp.id} className="hover:bg-zinc-800/20 transition-colors">
-                  <td className="p-4 font-bold text-zinc-100">{emp.name}</td>
-                  <td className="p-4">{emp.carrosLavados}</td>
-                  <td className="p-4">R$ {(emp.totalGeral ?? 0).toFixed(2)}</td>
-                  <td className="p-4">R$ {(emp.comissaoTotal ?? 0).toFixed(2)}</td>
-                  <td className="p-4">R$ {(emp.tipoPagamento !== 'comissao' ? (emp.valorDiariaAplicada ?? 0) : 0).toFixed(2)}</td>
-                  <td className="p-4 text-red-500">R$ {(emp.descontos ?? 0).toFixed(2)}</td>
-                  <td className="p-4 font-bold text-emerald-500">R$ {(emp.valorFinal ?? 0).toFixed(2)}</td>
-                  <td className="p-4">
-                    <button
-                      onClick={() => handlePagar(emp)}
-                      disabled={isPago(emp)}
-                      className={`px-4 py-2 rounded-xl font-bold text-xs transition-colors ${
-                        isPago(emp)
-                          ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 cursor-not-allowed'
-                          : 'bg-brand-primary text-zinc-950 hover:bg-brand-primary-hover'
-                      }`}>
-                      {isPago(emp) ? 'PAGO' : 'Pagar'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Cards dos Lavadores */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {employeeStats.length === 0 && (
+          <div className="col-span-full bg-zinc-900/50 rounded-2xl border border-zinc-800/50 p-8 text-center text-zinc-600">
+            Nenhum funcionário encontrado para este filtro.
+          </div>
+        )}
+        {employeeStats.map(emp => (
+          <div key={emp.id} className="bg-zinc-900/50 rounded-2xl border border-zinc-800/50 p-6 space-y-4">
+            {/* Header do Card */}
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white">{emp.name}</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {units.find(u => u.id === emp.unit_id)?.name || 'Sem unidade'}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-zinc-500 uppercase">Carros</div>
+                <div className="text-2xl font-bold text-brand-primary">{emp.carrosLavados}</div>
+              </div>
+            </div>
+
+            {/* Divisor */}
+            <div className="border-t border-zinc-800/50"></div>
+
+            {/* Valores */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-zinc-400">Total Gerado</span>
+                <span className="text-sm font-semibold text-zinc-200">R$ {(emp.totalGeral ?? 0).toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-zinc-400">
+                  Comissão
+                  {emp.divisorComissao > 1 && (
+                    <span className="text-xs text-zinc-600 ml-1">÷{emp.divisorComissao}</span>
+                  )}
+                </span>
+                <span className="text-sm font-semibold text-blue-400">R$ {(emp.comissaoTotal ?? 0).toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-zinc-400">Diária</span>
+                <span className="text-sm font-semibold text-purple-400">
+                  R$ {(emp.tipoPagamento !== 'comissao' ? (emp.valorDiariaAplicada ?? 0) : 0).toFixed(2)}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-zinc-400">Descontos</span>
+                <span className="text-sm font-semibold text-red-400">- R$ {(emp.descontos ?? 0).toFixed(2)}</span>
+              </div>
+
+              {/* Checkbox Marmita */}
+              <div className="flex justify-between items-center bg-zinc-800/30 rounded-lg p-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={marmitaDescontos[emp.id] || false}
+                    onChange={(e) => setMarmitaDescontos({
+                      ...marmitaDescontos,
+                      [emp.id]: e.target.checked
+                    })}
+                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-brand-primary focus:ring-brand-primary/50 focus:ring-2"
+                  />
+                  <span className="text-sm text-zinc-400">Descontar Marmita</span>
+                </label>
+                <span className="text-sm font-semibold text-orange-400">
+                  {marmitaDescontos[emp.id] ? '- R$ 15,00' : 'R$ 0,00'}
+                </span>
+              </div>
+            </div>
+
+            {/* Divisor */}
+            <div className="border-t border-zinc-800/50"></div>
+
+            {/* Total a Pagar */}
+            <div className="flex justify-between items-center">
+              <span className="text-base font-bold text-zinc-300">Total a Pagar</span>
+              <span className="text-2xl font-bold text-emerald-500">R$ {(emp.valorFinal ?? 0).toFixed(2)}</span>
+            </div>
+
+            {/* Botão Pagar */}
+            <button
+              onClick={() => handlePagar(emp)}
+              disabled={isPago(emp)}
+              className={`w-full py-3 rounded-xl font-bold text-sm transition-colors ${
+                isPago(emp)
+                  ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 cursor-not-allowed'
+                  : 'bg-brand-primary text-zinc-950 hover:bg-brand-primary-hover'
+              }`}>
+              {isPago(emp) ? '✓ PAGO' : 'Pagar Funcionário'}
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

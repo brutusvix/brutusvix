@@ -660,8 +660,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Erro ao atualizar usuário');
+      let errorMessage = 'Erro ao atualizar usuário';
+      try {
+        const err = await response.json();
+        errorMessage = err.error || errorMessage;
+        // Se houver informações de debug, mostrar no console
+        if (err.debug) {
+          console.error('Debug info:', err.debug);
+        }
+      } catch {
+        // Se não for JSON, usar o texto da resposta
+        const text = await response.text();
+        errorMessage = text || `Erro ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
     
     const updatedUser = await response.json();
@@ -758,15 +770,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // ─────────────────────────────────────────────────────────────────────────────
 
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
-    const { data, error } = await supabase.from('transactions').insert({
-      unit_id: transaction.unit_id,
-      type: transaction.type,
-      amount: transaction.amount,
-      category: transaction.category,
-      description: transaction.description,
-      date: transaction.date || new Date().toISOString(),
-    }).select().single();
-    if (error) throw error;
+    const token = localStorage.getItem('token');
+    const response = await fetch('/api/transactions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(transaction)
+    });
+    
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Erro ao criar transação');
+    }
+    
+    const data = await response.json();
     const newTransaction = mapTransaction(data);
     setTransactions(prev => {
       if (prev.some(t => t.id === newTransaction.id)) return prev;

@@ -1,5 +1,6 @@
 import winston from 'winston';
 import path from 'path';
+import { nowLocalISO } from './timezone.js';
 
 // ─── CONFIGURAÇÃO DO LOGGER ───────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ export function logUserAction(
     userId,
     action,
     resource,
-    timestamp: new Date().toISOString(),
+    timestamp: nowLocalISO(),
     ...details,
   });
 }
@@ -112,7 +113,7 @@ export function logApiAccess(
     statusCode,
     userId,
     duration,
-    timestamp: new Date().toISOString(),
+    timestamp: nowLocalISO(),
   });
 }
 
@@ -127,7 +128,7 @@ export function logSecurityEvent(
   logger.warn('Security event', {
     event,
     severity,
-    timestamp: new Date().toISOString(),
+    timestamp: nowLocalISO(),
     ...details,
   });
 }
