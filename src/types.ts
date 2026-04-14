@@ -63,7 +63,7 @@ export type ServiceCategory =
 export interface Service {
   id: string;
   name: string;
-  prices: { HATCH: number; SEDAN: number; SUV: number; CAMINHONETE: number };
+  prices: { HATCH: number; SEDAN: number; SUV: number; PICKUP: number; CAMINHONETE: number };
   duration_minutes: number;
   unit_id: string;
   category?: ServiceCategory;
@@ -89,7 +89,7 @@ export interface Appointment {
   status: 'AGENDADO' | 'EM_ANDAMENTO' | 'FINALIZADO' | 'CANCELADO';
   extras?: string[];
   total_price?: number;
-  vehicle_type: 'HATCH' | 'SEDAN' | 'SUV' | 'CAMINHONETE' | 'MOTO' | 'MOTO_PEQUENA' | 'MOTO_GRANDE';
+  vehicle_type: 'HATCH' | 'SEDAN' | 'SUV' | 'PICKUP' | 'CAMINHONETE' | 'MOTO' | 'MOTO_PEQUENA' | 'MOTO_GRANDE';
   client_name?: string;
   vehicle_model?: string;
   vehicle_color?: string;

@@ -134,6 +134,13 @@ async function startServer() {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     
+    console.log('🔐 Autenticando requisição:', {
+      path: req.path,
+      method: req.method,
+      hasToken: !!token,
+      tokenPreview: token ? token.substring(0, 20) + '...' : 'none'
+    });
+    
     if (!token) {
       logSecurityEvent('Missing auth token', 'low', { 
         path: req.path,
@@ -148,14 +155,21 @@ async function startServer() {
       // Usar anon key para validar token do cliente
       const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
       if (!supabaseAnonKey) {
+        console.error('❌ Supabase anon key não configurada');
         return res.status(500).json({ error: 'Supabase anon key not configured' });
       }
       
       const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
       const { data: { user }, error } = await supabaseClient.auth.getUser(token);
       
+      console.log('🔍 Resultado da validação do token:', {
+        hasUser: !!user,
+        userId: user?.id,
+        error: error?.message
+      });
+      
       if (error || !user) {
-        console.error('Auth error:', error?.message);
+        console.error('❌ Auth error:', error?.message);
         logSecurityEvent('Invalid auth token', 'medium', { 
           path: req.path,
           ip: req.ip,
@@ -165,20 +179,33 @@ async function startServer() {
       }
 
       // Get user role and unit_id from DB
-      const { data: dbUser } = await supabase
+      const { data: dbUser, error: dbError } = await supabase
         .from('users')
         .select('role, unit_id')
         .eq('auth_id', user.id)
         .single();
+
+      console.log('👤 Usuário do banco:', {
+        found: !!dbUser,
+        role: dbUser?.role,
+        unit_id: dbUser?.unit_id,
+        error: dbError?.message
+      });
 
       req.user = { 
         ...user, 
         role: dbUser?.role || 'LAVADOR', 
         unit_id: dbUser?.unit_id 
       };
+      
+      console.log('✅ Autenticação bem-sucedida:', {
+        userId: req.user.id,
+        role: req.user.role
+      });
+      
       next();
     } catch (err) {
-      console.error('Authentication error:', err);
+      console.error('❌ Authentication error:', err);
       logError('Authentication error', err as Error, { path: req.path });
       res.status(403).json({ error: 'Erro de autenticação' });
     }

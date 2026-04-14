@@ -79,25 +79,27 @@ export default function Settings() {
 
   return (
     <div className="space-y-8 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-100 flex items-center gap-3">
-            <SettingsIcon className="text-zinc-400" strokeWidth={1.5} />
-            Ajustes do Sistema
-          </h1>
-          <p className="text-zinc-500 mt-1 text-sm">Configure o funcionamento das suas unidades e links.</p>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-100 flex items-center gap-3">
+              <SettingsIcon className="text-zinc-400" strokeWidth={1.5} />
+              Ajustes do Sistema
+            </h1>
+            <p className="text-zinc-500 mt-1 text-sm">Configure o funcionamento das suas unidades e links.</p>
+          </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <button onClick={() => setShowAddUnitModal(true)}
-            className="px-4 py-2 bg-brand-primary text-zinc-950 rounded-xl text-sm font-medium hover:bg-brand-primary-hover transition-all flex items-center gap-2">
+            className="px-4 py-2 bg-brand-primary text-zinc-950 rounded-xl text-sm font-medium hover:bg-brand-primary-hover transition-all flex items-center gap-2 whitespace-nowrap">
             <Plus size={16} strokeWidth={1.5} /> Nova Unidade
           </button>
           <button onClick={() => handleToggleAllUnits(true)}
-            className="px-4 py-2 bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 text-zinc-300 rounded-xl text-sm font-medium hover:bg-zinc-800/50 transition-all flex items-center gap-2">
+            className="px-4 py-2 bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 text-zinc-300 rounded-xl text-sm font-medium hover:bg-zinc-800/50 transition-all flex items-center gap-2 whitespace-nowrap">
             <Power size={16} className="text-emerald-500" strokeWidth={1.5} /> Abrir Todas
           </button>
           <button onClick={() => handleToggleAllUnits(false)}
-            className="px-4 py-2 bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 text-zinc-300 rounded-xl text-sm font-medium hover:bg-zinc-800/50 transition-all flex items-center gap-2">
+            className="px-4 py-2 bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 text-zinc-300 rounded-xl text-sm font-medium hover:bg-zinc-800/50 transition-all flex items-center gap-2 whitespace-nowrap">
             <Power size={16} className="text-red-500" strokeWidth={1.5} /> Fechar Todas
           </button>
         </div>

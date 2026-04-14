@@ -51,7 +51,7 @@ export default function CheckIn() {
     brand: '',
     model: '',
     color: '',
-    type: 'HATCH' as 'HATCH' | 'SEDAN' | 'SUV' | 'CAMINHONETE' | 'MOTO_PEQUENA' | 'MOTO_GRANDE'
+    type: 'HATCH' as 'HATCH' | 'SEDAN' | 'SUV' | 'PICKUP' | 'CAMINHONETE' | 'MOTO_PEQUENA' | 'MOTO_GRANDE'
   });
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,14 +137,15 @@ export default function CheckIn() {
       console.log('PlateRecognizer Result:', result);
       
       // Mapear tipo de veículo
-      const typeMapping: Record<string, 'HATCH' | 'SEDAN' | 'SUV' | 'CAMINHONETE'> = {
+      const typeMapping: Record<string, 'HATCH' | 'SEDAN' | 'SUV' | 'PICKUP' | 'CAMINHONETE'> = {
         'Carro': 'HATCH',
         'Car': 'HATCH',
         'Hatch': 'HATCH',
         'Sedan': 'SEDAN',
         'SUV': 'SUV',
+        'Pickup': 'PICKUP',
+        'Pick-up': 'PICKUP',
         'Caminhonete': 'CAMINHONETE',
-        'Pickup': 'CAMINHONETE',
         'Truck': 'CAMINHONETE',
         'Moto': 'HATCH',
       };
@@ -245,7 +246,7 @@ export default function CheckIn() {
         client_id: client.id,
         vehicle_id: vehicle?.id || null,
         service_id: selectedServices[0].id, // Usar primeiro serviço como referência
-        unit_id: user?.unit_id || (units[0]?.id as any) || '',
+        unit_id: selectedUnitFilter !== 'all' ? selectedUnitFilter : (user?.unit_id || (units[0]?.id as any) || ''),
         washer_id: user?.id,
         vehicle_type: vehicleInfo.type,
         plate: skipPlate ? '' : plate.toUpperCase(),
@@ -257,7 +258,8 @@ export default function CheckIn() {
         extras: selectedExtras,
         photo_url: capturedPhoto || undefined,
         ai_data: aiResults || undefined,
-        service_name: servicesNames // Salvar nomes combinados
+        service_name: servicesNames, // Salvar nomes combinados
+        client_name: client.name // Salvar nome do cliente como fallback
       });
 
       // Reset
@@ -549,6 +551,7 @@ export default function CheckIn() {
                         <option value="HATCH">Hatch</option>
                         <option value="SEDAN">Sedan</option>
                         <option value="SUV">SUV</option>
+                        <option value="PICKUP">Pick-up</option>
                         <option value="CAMINHONETE">Caminhonete</option>
                         <option value="MOTO_PEQUENA">Moto Pequena</option>
                         <option value="MOTO_GRANDE">Moto Grande</option>
@@ -577,6 +580,7 @@ export default function CheckIn() {
                         <option value="HATCH">Hatch</option>
                         <option value="SEDAN">Sedan</option>
                         <option value="SUV">SUV</option>
+                        <option value="PICKUP">Pick-up</option>
                         <option value="CAMINHONETE">Caminhonete</option>
                         <option value="MOTO_PEQUENA">Moto Pequena</option>
                         <option value="MOTO_GRANDE">Moto Grande</option>

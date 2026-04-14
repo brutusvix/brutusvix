@@ -161,13 +161,13 @@ const Services = () => {
           <p className="text-zinc-500 text-sm">Gerencie o catálogo de serviços, preços e adicionais</p>
         </div>
         {user?.role === 'DONO' && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button onClick={() => setShowAddExtraModal(true)}
-              className="bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-800 text-zinc-300 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm">
+              className="bg-zinc-900/50 border border-zinc-800/50 hover:bg-zinc-800 text-zinc-300 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm whitespace-nowrap">
               <Plus size={18} strokeWidth={1.5} /> Novo Extra
             </button>
             <button onClick={() => setShowAddModal(true)}
-              className="bg-zinc-100 hover:bg-white text-zinc-950 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm">
+              className="bg-zinc-100 hover:bg-white text-zinc-950 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm whitespace-nowrap">
               <Plus size={18} strokeWidth={1.5} /> Novo Serviço
             </button>
           </div>

@@ -257,31 +257,16 @@ const Finance = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Financeiro</h1>
-          <p className="text-zinc-400">Controle de entradas, saídas e produtividade</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-xl p-1">
-            {(['today','yesterday','dayBeforeYesterday','week','last30','month'] as const).map(p => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === p ? 'bg-zinc-800/50 text-zinc-100 border border-zinc-800/50' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                {p === 'today' ? 'Hoje' : p === 'yesterday' ? 'Ontem' : p === 'dayBeforeYesterday' ? 'Anteontem' : p === 'week' ? '7 Dias' : p === 'last30' ? '30 Dias' : 'Mês Atual'}
-              </button>
-            ))}
-            <button 
-              onClick={() => setPeriod('custom')}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === 'custom' ? 'bg-zinc-800/50 text-zinc-100 border border-zinc-800/50' : 'text-zinc-500 hover:text-zinc-300'}`}
-            >
-              Personalizado
-            </button>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-100">Financeiro</h1>
+            <p className="text-zinc-400 text-sm">Controle de entradas, saídas e produtividade</p>
           </div>
           {user?.role === 'DONO' && (
-            <>
-              {/* ── Select usa string UUID diretamente ── */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <select
-                className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-xl py-2 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+                className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-xl py-2 px-4 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700 text-sm"
                 value={selectedUnit}
                 onChange={(e) => setSelectedUnit(e.target.value)}
               >
@@ -289,14 +274,32 @@ const Finance = () => {
                 {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
               <button onClick={() => { setEditingTransaction(null); setNewTransaction({ description: '', amount: '', category: 'SERVICO', type: 'INCOME', date: getLocalDateStr() }); setShowAddModal(true); }}
-                className="bg-zinc-100 hover:bg-white text-zinc-950 px-4 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium text-sm">
+                className="bg-zinc-100 hover:bg-white text-zinc-950 px-4 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium text-sm whitespace-nowrap">
                 <Plus size={18} strokeWidth={1.5} /> Lançar
               </button>
               <button onClick={exportPDF} className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 hover:bg-zinc-800 text-zinc-300 p-2 rounded-xl transition-colors">
                 <Download size={18} strokeWidth={1.5} />
               </button>
-            </>
+            </div>
           )}
+        </div>
+        
+        {/* Filtros de período */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+          <div className="flex bg-zinc-900/50 backdrop-blur-sm border border-zinc-800/50 rounded-xl p-1 gap-1">
+            {(['today','yesterday','dayBeforeYesterday','week','last30','month'] as const).map(p => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${period === p ? 'bg-zinc-800/50 text-zinc-100 border border-zinc-800/50' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                {p === 'today' ? 'Hoje' : p === 'yesterday' ? 'Ontem' : p === 'dayBeforeYesterday' ? 'Anteontem' : p === 'week' ? '7 Dias' : p === 'last30' ? '30 Dias' : 'Mês Atual'}
+              </button>
+            ))}
+            <button 
+              onClick={() => setPeriod('custom')}
+              className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${period === 'custom' ? 'bg-zinc-800/50 text-zinc-100 border border-zinc-800/50' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Personalizado
+            </button>
+          </div>
         </div>
       </div>
 

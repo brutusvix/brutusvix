@@ -230,13 +230,13 @@ export default function ProductionPayroll() {
         {employeeStats.map(emp => (
           <div key={emp.id} className="bg-zinc-900/50 rounded-2xl border border-zinc-800/50 p-6 space-y-4">
             {/* Header do Card */}
-            <div className="flex items-start justify-between">
-              <div>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-bold text-white">{emp.name}</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
                   {units.find(u => u.id === emp.unit_id)?.name || 'Sem unidade'}
                 </p>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-blue-500/10 text-blue-500">
                     Lavador {emp.lavadorTipo || '01'}
                   </span>
@@ -249,7 +249,7 @@ export default function ProductionPayroll() {
                   </span>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <div className="text-xs text-zinc-500 uppercase">Carros</div>
                 <div className={`text-2xl font-bold ${emp.bateuMeta ? 'text-emerald-500' : 'text-orange-400'}`}>
                   {emp.carrosLavados}

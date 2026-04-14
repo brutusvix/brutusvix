@@ -168,12 +168,12 @@ const Staff = () => {
         {filteredStaff.map(staff => (
           <div key={staff.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4 relative overflow-hidden group">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-brand-primary">
+              <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-brand-primary shrink-0">
                 <UserIcon size={24} />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-bold text-white truncate">{staff.name}</h3>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
                     staff.role === 'DONO' ? 'bg-purple-500/10 text-purple-500' : 'bg-blue-500/10 text-blue-500'
                   }`}>
@@ -189,10 +189,9 @@ const Staff = () => {
                   }`}>
                     {staff.auth_id ? 'Sincronizado' : 'Sem Auth'}
                   </span>
-                  <span className="text-zinc-500 text-xs">•</span>
-                  <span className="text-zinc-500 text-xs">
-                    {staff.role === 'DONO' ? 'Todas as Unidades' : units.find(u => u.id === staff.unit_id)?.name}
-                  </span>
+                </div>
+                <div className="mt-1 text-zinc-500 text-xs">
+                  {staff.role === 'DONO' ? 'Todas as Unidades' : units.find(u => u.id === staff.unit_id)?.name}
                 </div>
               </div>
             </div>

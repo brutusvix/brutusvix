@@ -116,6 +116,7 @@ function mapService(row: any): Service {
       HATCH: row.price_hatch || 0,
       SEDAN: row.price_sedan || 0,
       SUV: row.price_suv || 0,
+      PICKUP: row.price_pickup || 0,
       CAMINHONETE: row.price_pickup || 0,
     },
   };
@@ -742,6 +743,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updateData: any = {};
     if (fields.status !== undefined)                       updateData.status                = fields.status;
     if (fields.washer_id !== undefined)                    updateData.washer_id             = fields.washer_id;
+    if (fields.unit_id !== undefined)                      updateData.unit_id               = fields.unit_id;
+    if (fields.start_time !== undefined)                   updateData.start_time            = fields.start_time;
     if (fields.end_time !== undefined)                     updateData.end_time              = fields.end_time;
     if (fields.total_price !== undefined)                  updateData.total_price           = fields.total_price;
     if (fields.extras !== undefined)                       updateData.selected_extras       = fields.extras;

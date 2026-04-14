@@ -27,6 +27,7 @@ function calcPrice(service: any, vt: string): number {
     case 'HATCH':        return service.prices?.HATCH       ?? service.price_hatch  ?? 0;
     case 'SEDAN':        return service.prices?.SEDAN       ?? service.price_sedan  ?? 0;
     case 'SUV':          return service.prices?.SUV         ?? service.price_suv    ?? 0;
+    case 'PICKUP':       return service.prices?.PICKUP      ?? service.price_pickup ?? 0;
     case 'CAMINHONETE':  return service.prices?.CAMINHONETE ?? service.price_pickup ?? 0;
     case 'MOTO_PEQUENA':
     case 'MOTO_GRANDE':  return service.prices?.HATCH       ?? service.price_hatch  ?? 0;
