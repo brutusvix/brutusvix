@@ -6,10 +6,23 @@ import autoTable from 'jspdf-autotable';
 
 export default function ProductionPayroll() {
   const { production, users, updateProductionStatus, units, addTransaction, transactions } = useData();
-  const [selectedUnit, setSelectedUnit] = useState<string | 'ALL'>('ALL');
+  
+  // Carregar unidade selecionada do localStorage
+  const [selectedUnit, setSelectedUnit] = useState<string | 'ALL'>(() => {
+    const saved = localStorage.getItem('productionPayroll_selectedUnit');
+    return saved || 'ALL';
+  });
+  
   const [period, setPeriod] = useState<'today' | 'yesterday' | 'dayBeforeYesterday' | 'week' | 'month' | 'custom'>('today');
   const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [marmitaDescontos, setMarmitaDescontos] = useState<{ [empId: string]: boolean }>({});
+
+  // Salvar unidade selecionada no localStorage quando mudar
+  const handleUnitChange = (value: string) => {
+    const newValue = value === 'ALL' ? 'ALL' : value;
+    setSelectedUnit(newValue);
+    localStorage.setItem('productionPayroll_selectedUnit', newValue);
+  };
 
   const filterDate = (dateString: string) => {
     const now = new Date();
@@ -193,7 +206,7 @@ export default function ProductionPayroll() {
         <select
           className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-2 text-white focus:outline-none focus:ring-1 focus:ring-zinc-700"
           value={selectedUnit}
-          onChange={(e) => setSelectedUnit(e.target.value === 'ALL' ? 'ALL' : e.target.value)}
+          onChange={(e) => handleUnitChange(e.target.value)}
         >
           <option value="ALL">Todas as Unidades</option>
           {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
