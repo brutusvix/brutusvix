@@ -58,7 +58,13 @@ export default function Login() {
       };
 
       // 4. Usa o access_token do Supabase como token do app
+      // O Supabase já salva a sessão automaticamente no localStorage
+      // e fará refresh automático quando o token expirar
       login(authData.session.access_token, appUser);
+      
+      console.log('✅ Login realizado com sucesso');
+      console.log('🔐 Token expira em:', new Date(authData.session.expires_at! * 1000).toLocaleString('pt-BR'));
+      
       navigate('/');
 
     } catch (err) {

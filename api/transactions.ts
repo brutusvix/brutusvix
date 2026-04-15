@@ -47,10 +47,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     if (authError) {
       console.error('❌ Erro ao verificar token:', authError.message);
+      
+      // Verificar se é erro de token expirado
+      const isExpired = authError.message.includes('expired') || authError.message.includes('JWT');
+      
       return res.status(401).json({ 
-        error: 'Token inválido ou expirado', 
+        error: isExpired ? 'Sessão expirada' : 'Token inválido', 
         details: authError.message,
-        hint: 'Faça logout e login novamente para renovar o token'
+        hint: 'Faça logout e login novamente para renovar sua sessão',
+        action: 'LOGOUT_REQUIRED'
       });
     }
     

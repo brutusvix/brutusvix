@@ -349,6 +349,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // Atualizar token no localStorage quando o Supabase fizer refresh automático
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('🔄 Token atualizado automaticamente');
+        console.log('🔐 Novo token expira em:', new Date(session.expires_at! * 1000).toLocaleString('pt-BR'));
+        localStorage.setItem('token', session.access_token);
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        console.log('👋 Usuário deslogado');
+        localStorage.removeItem('token');
+        sessionStorage.clear();
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
   // Limpar cache ao desmontar (logout)
   useEffect(() => {
     return () => {
@@ -786,6 +807,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (!response.ok) {
       const err = await response.json();
+      
+      // Se token expirou, fazer logout automático
+      if (response.status === 401 && err.action === 'LOGOUT_REQUIRED') {
+        console.error('🔐 Sessão expirada, fazendo logout...');
+        localStorage.removeItem('token');
+        sessionStorage.clear();
+        window.location.href = '/login';
+        throw new Error('Sessão expirada. Redirecionando para login...');
+      }
+      
       throw new Error(err.error || 'Erro ao criar transação');
     }
     
