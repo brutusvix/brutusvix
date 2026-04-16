@@ -82,6 +82,10 @@ export default function Agenda() {
   const [showEditClientModal, setShowEditClientModal] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [showEditDateModal, setShowEditDateModal] = useState(false);
+  const [showEditServiceModal, setShowEditServiceModal] = useState(false);
+  const [editingServiceAppt, setEditingServiceAppt] = useState<any>(null);
+  const [editServiceId, setEditServiceId] = useState<string>('');
+  const [editExtras, setEditExtras] = useState<string[]>([]);
   const [selectedAppointments, setSelectedAppointments] = useState<string[]>([]);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [bulkEditDate, setBulkEditDate] = useState('');
@@ -546,6 +550,21 @@ export default function Agenda() {
                               >
                                 <CalendarIcon size={14} className="text-zinc-400" />
                                 Editar Data/Hora
+                              </button>
+                            )}
+                            {user?.role === 'DONO' && (
+                              <button
+                                onClick={() => {
+                                  setEditingServiceAppt(appt);
+                                  setEditServiceId(appt.service_id);
+                                  setEditExtras(appt.extras || []);
+                                  setShowEditServiceModal(true);
+                                  setOpenMenuId(null);
+                                }}
+                                className="w-full text-left px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 flex items-center gap-2 border-b border-zinc-800"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                Editar Serviços
                               </button>
                             )}
                             {phone && (
@@ -1212,6 +1231,138 @@ export default function Agenda() {
                     } catch (error: any) {
                       console.error('Erro ao atualizar data:', error);
                       alert(error.message || 'Erro ao atualizar data');
+                    }
+                  }} 
+                  className="flex-1 bg-brand-primary hover:bg-brand-primary-hover text-zinc-950 py-3 rounded-xl font-bold transition-colors"
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Serviços */}
+      {showEditServiceModal && editingServiceAppt && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-zinc-100 mb-4">Editar Serviços</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Agendamento</p>
+                <p className="text-zinc-100 font-bold">
+                  {clients.find(c => c.id === editingServiceAppt.client_id)?.name || editingServiceAppt.client_name || 'Cliente'}
+                </p>
+                <p className="text-zinc-400 text-sm mt-1">
+                  {editingServiceAppt.plate || editingServiceAppt.vehicle_model || 'Veículo'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                  Serviço Principal
+                </label>
+                <select
+                  value={editServiceId}
+                  onChange={(e) => setEditServiceId(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                >
+                  <option value="">Selecione um serviço</option>
+                  {services
+                    .filter(s => s.unit_id === editingServiceAppt.unit_id)
+                    .map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} - R$ {s.prices[editingServiceAppt.vehicle_type as keyof typeof s.prices]?.toFixed(2) || '0.00'}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                  Serviços Extras
+                </label>
+                <div className="space-y-2 max-h-48 overflow-y-auto bg-zinc-800/30 rounded-xl p-3 border border-zinc-800">
+                  {extras.length === 0 ? (
+                    <p className="text-zinc-500 text-sm text-center py-2">Nenhum extra disponível</p>
+                  ) : (
+                    extras.map(ex => (
+                      <label key={ex.id} className="flex items-center gap-3 p-2 hover:bg-zinc-800/50 rounded-lg cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editExtras.includes(ex.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditExtras([...editExtras, ex.id]);
+                            } else {
+                              setEditExtras(editExtras.filter(id => id !== ex.id));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-zinc-700 text-brand-primary focus:ring-brand-primary focus:ring-offset-zinc-900"
+                        />
+                        <span className="flex-1 text-zinc-300 text-sm">{ex.name}</span>
+                        <span className="text-brand-primary font-bold text-sm">R$ {ex.price.toFixed(2)}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3">
+                <p className="text-xs text-blue-400">
+                  💡 O preço será recalculado automaticamente com base no tipo de veículo e extras selecionados
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    setShowEditServiceModal(false);
+                    setEditingServiceAppt(null);
+                    setEditServiceId('');
+                    setEditExtras([]);
+                  }} 
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (!editServiceId) {
+                      alert('Selecione um serviço');
+                      return;
+                    }
+                    try {
+                      const service = services.find(s => s.id === editServiceId);
+                      if (!service) {
+                        alert('Serviço não encontrado');
+                        return;
+                      }
+
+                      // Calcular novo preço
+                      const basePrice = service.prices[editingServiceAppt.vehicle_type as keyof typeof service.prices] || 0;
+                      const extrasPrice = editExtras.reduce((sum, extraId) => {
+                        const extra = extras.find(e => e.id === extraId);
+                        return sum + (extra?.price || 0);
+                      }, 0);
+                      const totalPrice = basePrice + extrasPrice;
+
+                      await updateAppointment(editingServiceAppt.id, {
+                        service_id: editServiceId,
+                        extras: editExtras,
+                        total_price: totalPrice
+                      });
+                      
+                      setShowEditServiceModal(false);
+                      setEditingServiceAppt(null);
+                      setEditServiceId('');
+                      setEditExtras([]);
+                      alert('Serviços atualizados com sucesso!');
+                    } catch (error: any) {
+                      console.error('Erro ao atualizar serviços:', error);
+                      alert(error.message || 'Erro ao atualizar serviços');
                     }
                   }} 
                   className="flex-1 bg-brand-primary hover:bg-brand-primary-hover text-zinc-950 py-3 rounded-xl font-bold transition-colors"
